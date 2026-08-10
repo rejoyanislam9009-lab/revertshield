@@ -9,6 +9,9 @@ namespace RevertShield\Core;
 
 use RevertShield\Support\Cleanup;
 
+/**
+ * Handles plugin deactivation.
+ */
 final class Deactivator {
 	/**
 	 * Deactivate plugin without deleting user data.
