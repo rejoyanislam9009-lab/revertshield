@@ -268,7 +268,7 @@ final class SnapshotStorage {
 		$guards = array(
 			'.htaccess'  => "<IfModule mod_authz_core.c>\nRequire all denied\n</IfModule>\n<IfModule !mod_authz_core.c>\nDeny from all\n</IfModule>\n",
 			'web.config' => "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<configuration><system.webServer><authorization><deny users=\"*\" /></authorization></system.webServer></configuration>\n",
-			'index.php'   => "<?php\n// Silence is golden.\n",
+			'index.php'  => "<?php\n// Silence is golden.\n",
 		);
 
 		foreach ( $guards as $filename => $contents ) {
