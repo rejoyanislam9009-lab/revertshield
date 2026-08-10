@@ -29,6 +29,9 @@ final class PluginSnapshotService {
 	/** @var SnapshotRepository */
 	private $repository;
 
+	/** @var SnapshotVerifier */
+	private $verifier;
+
 	/**
 	 * Constructor.
 	 *
@@ -38,6 +41,7 @@ final class PluginSnapshotService {
 	 * @param StorageLocator|null      $storage_locator Optional storage locator.
 	 * @param SnapshotStorage|null     $storage         Optional storage service.
 	 * @param SnapshotRepository|null  $repository      Optional metadata repository.
+	 * @param SnapshotVerifier|null    $verifier        Optional integrity verifier.
 	 */
 	public function __construct(
 		PluginSourceLocator $source_locator = null,
@@ -45,7 +49,8 @@ final class PluginSnapshotService {
 		SnapshotPreflight $preflight = null,
 		StorageLocator $storage_locator = null,
 		SnapshotStorage $storage = null,
-		SnapshotRepository $repository = null
+		SnapshotRepository $repository = null,
+		SnapshotVerifier $verifier = null
 	) {
 		$this->source_locator  = $source_locator ? $source_locator : new PluginSourceLocator();
 		$this->inventory       = $inventory ? $inventory : new PluginInventory( $this->source_locator );
@@ -53,10 +58,11 @@ final class PluginSnapshotService {
 		$this->storage_locator = $storage_locator ? $storage_locator : new StorageLocator();
 		$this->storage         = $storage ? $storage : new SnapshotStorage( $this->storage_locator );
 		$this->repository      = $repository ? $repository : new SnapshotRepository();
+		$this->verifier        = $verifier ? $verifier : new SnapshotVerifier( $this->repository, $this->storage_locator );
 	}
 
 	/**
-	 * Create and verify a scoped plugin snapshot.
+	 * Create and independently verify a scoped plugin snapshot.
 	 *
 	 * This internal service does not perform plugin updates or restore operations.
 	 *
@@ -117,17 +123,17 @@ final class PluginSnapshotService {
 			return $ready;
 		}
 
-		return array(
-			'snapshot_uuid'   => $snapshot_uuid,
-			'component_type'  => 'plugin',
-			'component_name'  => $component['plugin_file'],
-			'state'           => SnapshotState::READY,
-			'storage_relpath' => $location['relative'],
-			'size_bytes'      => $manifest->total_size(),
-			'expires_at'      => $expires_at,
-			'object_count'    => $materialized['object_count'],
-			'manifest_sha256' => $materialized['manifest_sha256'],
-		);
+		$verified = $this->verifier->verify( $snapshot_uuid );
+		if ( is_wp_error( $verified ) ) {
+			$this->repository->mark_corrupt( $snapshot_uuid );
+			return $verified;
+		}
+
+		$verified['state']           = SnapshotState::READY;
+		$verified['storage_relpath'] = $location['relative'];
+		$verified['expires_at']      = $expires_at;
+
+		return $verified;
 	}
 
 	/**
