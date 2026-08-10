@@ -66,5 +66,4 @@ jobs:
         with:
           build-dir: './tmp-build/revertshield'
           slug: 'revertshield'
-          exclude-checks: 'plugin_review_phpcs'
           strict: true
