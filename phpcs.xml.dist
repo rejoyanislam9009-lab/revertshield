@@ -7,6 +7,14 @@
 	<exclude-pattern>vendor/*</exclude-pattern>
 	<arg name="extensions" value="php"/>
 	<arg value="sp"/>
-	<rule ref="WordPress"/>
+	<rule ref="WordPress">
+		<!-- Namespaced source uses a PSR-4 class-to-file map rather than WordPress' legacy class filename convention. -->
+		<exclude name="WordPress.Files.FileName.NotHyphenatedLowercase"/>
+		<exclude name="WordPress.Files.FileName.InvalidClassFileName"/>
+		<!-- RevertShield intentionally owns dedicated operational tables; these queries cannot use core CRUD APIs. -->
+		<exclude name="WordPress.DB.DirectDatabaseQuery.DirectQuery"/>
+		<exclude name="WordPress.DB.DirectDatabaseQuery.NoCaching"/>
+		<exclude name="WordPress.DB.DirectDatabaseQuery.SchemaChange"/>
+	</rule>
 	<rule ref="WordPress-Docs"/>
 </ruleset>
