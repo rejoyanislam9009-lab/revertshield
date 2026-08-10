@@ -30,4 +30,14 @@ final class Tables {
 		global $wpdb;
 		return $wpdb->prefix . 'revertshield_health_runs';
 	}
+
+	/**
+	 * Snapshot metadata table.
+	 *
+	 * @return string
+	 */
+	public static function snapshots() {
+		global $wpdb;
+		return $wpdb->prefix . 'revertshield_snapshots';
+	}
 }
