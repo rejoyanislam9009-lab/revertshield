@@ -11,6 +11,18 @@ namespace RevertShield\Snapshot;
  * Builds a deterministic, checksummed inventory for an installed plugin.
  */
 final class PluginInventory {
+	/** @var PluginSourceLocator */
+	private $locator;
+
+	/**
+	 * Constructor.
+	 *
+	 * @param PluginSourceLocator|null $locator Optional source locator.
+	 */
+	public function __construct( PluginSourceLocator $locator = null ) {
+		$this->locator = $locator ? $locator : new PluginSourceLocator();
+	}
+
 	/**
 	 * Build a manifest for an installed plugin.
 	 *
@@ -20,45 +32,29 @@ final class PluginInventory {
 	 * @return SnapshotManifest|\WP_Error Manifest or an error.
 	 */
 	public function build( $plugin_file ) {
-		if ( ! function_exists( 'get_plugins' ) ) {
-			require_once ABSPATH . 'wp-admin/includes/plugin.php';
+		$component = $this->locator->locate( $plugin_file );
+		if ( is_wp_error( $component ) ) {
+			return $component;
 		}
 
-		$plugin_file = ltrim( wp_normalize_path( (string) $plugin_file ), '/' );
-		$plugins     = get_plugins();
-
-		if ( 0 !== validate_file( $plugin_file ) || ! isset( $plugins[ $plugin_file ] ) ) {
-			return new \WP_Error(
-				'revertshield_unknown_plugin',
-				__( 'The requested plugin is not installed.', 'revertshield' )
+		if ( $component['single_file'] ) {
+			$inventory = $this->inventory_single_file(
+				$component['plugin_file'],
+				$component['component_root']
 			);
-		}
-
-		$plugins_root = realpath( WP_PLUGIN_DIR );
-		if ( false === $plugins_root ) {
-			return new \WP_Error(
-				'revertshield_plugins_root_unavailable',
-				__( 'RevertShield could not resolve the plugins directory.', 'revertshield' )
-			);
-		}
-
-		$plugins_root = wp_normalize_path( $plugins_root );
-		$plugin_data  = $plugins[ $plugin_file ];
-		$relative_dir = dirname( $plugin_file );
-
-		if ( '.' === $relative_dir ) {
-			$inventory = $this->inventory_single_file( $plugin_file, $plugins_root );
 		} else {
-			$inventory = $this->inventory_directory( $relative_dir, $plugins_root );
+			$inventory = $this->inventory_directory( $component['component_root'] );
 		}
 
 		if ( is_wp_error( $inventory ) ) {
 			return $inventory;
 		}
 
+		$plugin_data = $component['plugin_data'];
+
 		return new SnapshotManifest(
 			'plugin',
-			$plugin_file,
+			$component['plugin_file'],
 			array(
 				'name'         => isset( $plugin_data['Name'] ) ? $plugin_data['Name'] : '',
 				'version'      => isset( $plugin_data['Version'] ) ? $plugin_data['Version'] : '',
@@ -74,11 +70,11 @@ final class PluginInventory {
 	/**
 	 * Inventory a plugin implemented as a single file in the plugins root.
 	 *
-	 * @param string $plugin_file  Plugin basename.
-	 * @param string $plugins_root Canonical plugin root.
+	 * @param string $plugin_file    Plugin basename.
+	 * @param string $component_root Canonical plugins root.
 	 * @return array|\WP_Error Inventory or an error.
 	 */
-	private function inventory_single_file( $plugin_file, $plugins_root ) {
+	private function inventory_single_file( $plugin_file, $component_root ) {
 		$absolute = realpath( WP_PLUGIN_DIR . '/' . $plugin_file );
 		if ( false === $absolute || ! is_file( $absolute ) ) {
 			return new \WP_Error(
@@ -88,7 +84,7 @@ final class PluginInventory {
 		}
 
 		$absolute = wp_normalize_path( $absolute );
-		if ( ! $this->is_within_root( $absolute, $plugins_root ) ) {
+		if ( ! $this->is_within_root( $absolute, $component_root ) ) {
 			return new \WP_Error(
 				'revertshield_plugin_path_escape',
 				__( 'A plugin file escaped the expected plugins directory.', 'revertshield' )
@@ -109,27 +105,10 @@ final class PluginInventory {
 	/**
 	 * Inventory all regular files below one installed plugin directory.
 	 *
-	 * @param string $relative_dir Plugin directory relative to WP_PLUGIN_DIR.
-	 * @param string $plugins_root Canonical plugin root.
+	 * @param string $component_root Canonical plugin component root.
 	 * @return array|\WP_Error Inventory or an error.
 	 */
-	private function inventory_directory( $relative_dir, $plugins_root ) {
-		$component_root = realpath( WP_PLUGIN_DIR . '/' . $relative_dir );
-		if ( false === $component_root || ! is_dir( $component_root ) ) {
-			return new \WP_Error(
-				'revertshield_plugin_directory_unavailable',
-				__( 'The plugin directory could not be read for snapshot preparation.', 'revertshield' )
-			);
-		}
-
-		$component_root = wp_normalize_path( $component_root );
-		if ( ! $this->is_within_root( $component_root, $plugins_root ) ) {
-			return new \WP_Error(
-				'revertshield_plugin_path_escape',
-				__( 'The plugin directory escaped the expected plugins directory.', 'revertshield' )
-			);
-		}
-
+	private function inventory_directory( $component_root ) {
 		$max_files = (int) apply_filters( 'revertshield_snapshot_max_files', 50000, 'plugin' );
 		$max_files = max( 1, min( 100000, $max_files ) );
 		$files     = array();
@@ -232,9 +211,9 @@ final class PluginInventory {
 	 * @return bool
 	 */
 	private function is_within_root( $path, $root ) {
-		return 0 === strpos(
-			wp_normalize_path( $path ),
-			trailingslashit( wp_normalize_path( $root ) )
-		);
+		$path = wp_normalize_path( $path );
+		$root = untrailingslashit( wp_normalize_path( $root ) );
+
+		return 0 === strpos( $path, trailingslashit( $root ) );
 	}
 }
