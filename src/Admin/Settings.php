@@ -45,17 +45,24 @@ final class Settings {
 	/**
 	 * Sanitize plugin settings.
 	 *
+	 * Snapshot retention is preserved when the legacy main settings form does
+	 * not include that newer field.
+	 *
 	 * @param mixed $input Raw input.
 	 * @return array
 	 */
 	public function sanitize( $input ) {
-		$input         = is_array( $input ) ? $input : array();
-		$days          = isset( $input['retention_days'] ) ? absint( $input['retention_days'] ) : 90;
-		$snapshot_days = isset( $input['snapshot_retention_days'] ) ? absint( $input['snapshot_retention_days'] ) : 7;
+		$input    = is_array( $input ) ? $input : array();
+		$current  = get_option( 'revertshield_settings', array() );
+		$current  = is_array( $current ) ? $current : array();
+		$days     = isset( $input['retention_days'] ) ? absint( $input['retention_days'] ) : 90;
+		$snapshot = isset( $input['snapshot_retention_days'] )
+			? absint( $input['snapshot_retention_days'] )
+			: ( isset( $current['snapshot_retention_days'] ) ? absint( $current['snapshot_retention_days'] ) : 7 );
 
 		return array(
 			'retention_days'          => max( 1, min( 3650, $days ) ),
-			'snapshot_retention_days' => max( 1, min( 90, $snapshot_days ) ),
+			'snapshot_retention_days' => max( 1, min( 90, $snapshot ) ),
 			'log_option_names'        => empty( $input['log_option_names'] ) ? 0 : 1,
 			'delete_on_uninstall'     => empty( $input['delete_on_uninstall'] ) ? 0 : 1,
 		);
