@@ -15,6 +15,24 @@ if ( empty( $revertshield_settings['delete_on_uninstall'] ) ) {
 	return;
 }
 
+$revertshield_uploads = wp_upload_dir( null, false );
+if ( empty( $revertshield_uploads['error'] ) && ! empty( $revertshield_uploads['basedir'] ) ) {
+	$revertshield_basedir = untrailingslashit( wp_normalize_path( $revertshield_uploads['basedir'] ) );
+	$revertshield_storage = wp_normalize_path( trailingslashit( $revertshield_basedir ) . 'revertshield' );
+
+	if ( 0 === strpos( $revertshield_storage, trailingslashit( $revertshield_basedir ) ) ) {
+		require_once ABSPATH . 'wp-admin/includes/file.php';
+
+		if ( WP_Filesystem() ) {
+			global $wp_filesystem;
+
+			if ( $wp_filesystem && isset( $wp_filesystem->method ) && 'direct' === $wp_filesystem->method && $wp_filesystem->exists( $revertshield_storage ) ) {
+				$wp_filesystem->delete( $revertshield_storage, true );
+			}
+		}
+	}
+}
+
 global $wpdb;
 
 $revertshield_changes     = $wpdb->prefix . 'revertshield_changes';
