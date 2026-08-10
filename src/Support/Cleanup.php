@@ -9,6 +9,9 @@ namespace RevertShield\Support;
 
 use RevertShield\Database\Tables;
 
+/**
+ * Removes expired operational records in bounded batches.
+ */
 final class Cleanup {
 	const HOOK = 'revertshield_daily_cleanup';
 
@@ -59,6 +62,7 @@ final class Cleanup {
 		$cutoff   = gmdate( 'Y-m-d H:i:s', time() - ( DAY_IN_SECONDS * $days ) );
 
 		foreach ( array( Tables::changes(), Tables::health_runs() ) as $table ) {
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Bounded retention deletion targets RevertShield custom tables and does not benefit from object caching.
 			$wpdb->query(
 				$wpdb->prepare( 'DELETE FROM %i WHERE created_at < %s LIMIT 5000', $table, $cutoff )
 			);
