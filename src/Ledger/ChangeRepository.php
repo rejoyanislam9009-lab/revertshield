@@ -9,6 +9,9 @@ namespace RevertShield\Ledger;
 
 use RevertShield\Database\Tables;
 
+/**
+ * Persists and reads change ledger events.
+ */
 final class ChangeRepository {
 	/**
 	 * Store a ledger event.
@@ -20,9 +23,10 @@ final class ChangeRepository {
 	 * @param string $source      Event source.
 	 * @return int|false Inserted row ID or false.
 	 */
-	public function record( $event_type, $object_type = '', $object_name = '', array $context = array(), $source = 'wordpress' ) {
+	public function record( $event_type, $object_type = '', $object_name = '', array $context = array(), $source = 'core' ) {
 		global $wpdb;
 
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery -- RevertShield stores append-only operational events in its own custom table.
 		$inserted = $wpdb->insert(
 			Tables::changes(),
 			array(
@@ -52,6 +56,7 @@ final class ChangeRepository {
 		$limit = max( 1, min( 200, absint( $limit ) ) );
 		$table = Tables::changes();
 
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Admin ledger reads fresh operational data from a bounded custom-table query.
 		$rows = $wpdb->get_results(
 			$wpdb->prepare( 'SELECT * FROM %i ORDER BY id DESC LIMIT %d', $table, $limit ),
 			ARRAY_A
@@ -69,6 +74,7 @@ final class ChangeRepository {
 		global $wpdb;
 
 		$table = Tables::changes();
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Dashboard metric must reflect the current custom-table row count.
 		$count = $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM %i', $table ) );
 
 		return absint( $count );
