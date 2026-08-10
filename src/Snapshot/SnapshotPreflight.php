@@ -60,7 +60,7 @@ final class SnapshotPreflight {
 		}
 
 		return array(
-			'uploads_base'  => untrailingslashit( $base_dir ),
+			'uploads_base'   => untrailingslashit( $base_dir ),
 			'required_bytes' => $required_with_margin,
 			'free_bytes'     => $free_bytes,
 		);
