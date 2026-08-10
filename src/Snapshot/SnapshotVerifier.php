@@ -43,7 +43,7 @@ final class SnapshotVerifier {
 			);
 		}
 
-		if ( SnapshotState::READY !== $snapshot['state'] ) {
+		if ( ! isset( $snapshot['state'] ) || SnapshotState::READY !== $snapshot['state'] ) {
 			return new \WP_Error(
 				'revertshield_snapshot_not_ready',
 				__( 'Only ready snapshots can pass recovery integrity verification.', 'revertshield' )
@@ -55,7 +55,8 @@ final class SnapshotVerifier {
 			return $location;
 		}
 
-		if ( wp_normalize_path( $snapshot['storage_relpath'] ) !== wp_normalize_path( $location['relative'] ) ) {
+		$storage_relpath = isset( $snapshot['storage_relpath'] ) ? wp_normalize_path( (string) $snapshot['storage_relpath'] ) : '';
+		if ( $storage_relpath !== wp_normalize_path( $location['relative'] ) ) {
 			return new \WP_Error(
 				'revertshield_snapshot_storage_mismatch',
 				__( 'The snapshot storage location does not match its generated identifier.', 'revertshield' )
@@ -86,7 +87,13 @@ final class SnapshotVerifier {
 		}
 
 		$manifest = json_decode( $stored_json, true );
-		if ( ! is_array( $manifest ) || SnapshotManifest::FORMAT_VERSION !== (int) $manifest['format_version'] || empty( $manifest['files'] ) || ! is_array( $manifest['files'] ) ) {
+		if (
+			! is_array( $manifest ) ||
+			! isset( $manifest['format_version'], $manifest['files'], $manifest['total_size'] ) ||
+			SnapshotManifest::FORMAT_VERSION !== (int) $manifest['format_version'] ||
+			! is_array( $manifest['files'] ) ||
+			empty( $manifest['files'] )
+		) {
 			return new \WP_Error(
 				'revertshield_snapshot_manifest_invalid',
 				__( 'The snapshot manifest format is invalid.', 'revertshield' )
@@ -105,7 +112,8 @@ final class SnapshotVerifier {
 			$total_size += $verified;
 		}
 
-		if ( $total_size !== (int) $snapshot['size_bytes'] || $total_size !== (int) $manifest['total_size'] ) {
+		$snapshot_size = isset( $snapshot['size_bytes'] ) ? (int) $snapshot['size_bytes'] : -1;
+		if ( $total_size !== $snapshot_size || $total_size !== (int) $manifest['total_size'] ) {
 			return new \WP_Error(
 				'revertshield_snapshot_size_mismatch',
 				__( 'The verified snapshot size does not match its manifest metadata.', 'revertshield' )
@@ -114,8 +122,8 @@ final class SnapshotVerifier {
 
 		return array(
 			'snapshot_uuid'   => strtolower( $snapshot_uuid ),
-			'component_type'  => $snapshot['component_type'],
-			'component_name'  => $snapshot['component_name'],
+			'component_type'  => isset( $snapshot['component_type'] ) ? $snapshot['component_type'] : '',
+			'component_name'  => isset( $snapshot['component_name'] ) ? $snapshot['component_name'] : '',
 			'object_count'    => count( $manifest['files'] ),
 			'size_bytes'      => $total_size,
 			'manifest_sha256' => hash( 'sha256', $stored_json ),
