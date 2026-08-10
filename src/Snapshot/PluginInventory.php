@@ -140,7 +140,7 @@ final class PluginInventory {
 				$component_root,
 				\FilesystemIterator::SKIP_DOTS
 			);
-			$iterator = new \RecursiveIteratorIterator( $directory );
+			$iterator  = new \RecursiveIteratorIterator( $directory );
 
 			foreach ( $iterator as $item ) {
 				if ( $item->isLink() ) {
