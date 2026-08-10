@@ -7,8 +7,15 @@
 
 namespace RevertShield\Ledger;
 
+/**
+ * Observes high-value WordPress maintenance events.
+ */
 final class ChangeObserver {
-	/** @var ChangeRepository */
+	/**
+	 * Ledger persistence service.
+	 *
+	 * @var ChangeRepository
+	 */
 	private $repository;
 
 	/**
