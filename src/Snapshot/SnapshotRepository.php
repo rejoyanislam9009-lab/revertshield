@@ -93,7 +93,7 @@ final class SnapshotRepository {
 			);
 		}
 
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery -- Snapshot lifecycle metadata belongs in RevertShield's dedicated table.
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Snapshot lifecycle state must be persisted immediately and read fresh before recovery decisions.
 		$updated = $wpdb->update(
 			Tables::snapshots(),
 			array(
@@ -129,7 +129,7 @@ final class SnapshotRepository {
 			return false;
 		}
 
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery -- Snapshot lifecycle metadata belongs in RevertShield's dedicated table.
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Failure state must be persisted immediately and read fresh before later maintenance decisions.
 		$updated = $wpdb->update(
 			Tables::snapshots(),
 			array( 'state' => SnapshotState::FAILED ),
