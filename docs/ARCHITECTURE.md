@@ -10,7 +10,7 @@ RevertShield is a transactional change-safety layer for WordPress. It should ide
 - `Database`: schema and table naming.
 - `Ledger`: normalized change events with redacted context.
 - `Health`: local health probes and persisted results.
-- `Snapshot`: component inventory, integrity manifests, storage boundaries, and snapshot lifecycle metadata.
+- `Snapshot`: component resolution, inventory, integrity manifests, storage boundaries, content-addressed objects, and snapshot lifecycle metadata.
 - `Admin`: settings and operational UI.
 - `Support`: bounded retention cleanup.
 
@@ -32,17 +32,22 @@ Snapshot lifecycle metadata. It stores a UUID, scoped component identifier, life
 
 ## Snapshot trust boundary
 
-Snapshot preparation is deliberately fail-closed.
+Snapshot creation is deliberately fail-closed.
 
-1. A component adapter resolves an installed WordPress component from WordPress-owned metadata rather than accepting an arbitrary filesystem path.
-2. Canonical paths must remain inside the expected component root.
-3. Symlinks are rejected until their restore semantics can be defined safely.
-4. Every regular file in a prepared plugin inventory receives a SHA-256 digest and byte count.
-5. Storage locations are derived from a generated UUID and remain under `wp-content/uploads/revertshield/snapshots/`.
-6. Preflight checks verify the uploads boundary is writable and, when detectable, has adequate free disk space with a safety margin.
-7. A snapshot cannot become `ready` unless its manifest can be encoded and its metadata transition is persisted successfully.
+1. A component locator resolves an installed WordPress plugin from `get_plugins()` rather than accepting an arbitrary filesystem path.
+2. Canonical source paths must remain inside the expected plugin component root.
+3. Symlinks are rejected until their recovery semantics can be defined safely.
+4. Every regular source file receives a SHA-256 digest and byte count before materialization.
+5. Preflight verifies that uploads storage is writable and, when detectable, has enough free disk space with a safety margin.
+6. Storage locations are derived from a generated UUID and remain below `wp-content/uploads/revertshield/snapshots/`.
+7. Original plugin filenames are not copied into uploads. File bytes are stored as extensionless content-addressed objects named `objects/<sha256>`.
+8. Each source file is re-hashed immediately before copy. If it changed after inventory, snapshot creation fails.
+9. Every copied object is re-hashed after copy. A mismatch fails the snapshot and removes the partial snapshot directory.
+10. The manifest is written through a same-directory temporary file and committed by move, then its stored contents are re-read and verified.
+11. Apache/IIS deny rules and an index guard are written at the RevertShield uploads root as defense in depth; extensionless object naming is the primary execution-safety boundary.
+12. Snapshot metadata can transition from `preparing` to `ready` only after storage materialization succeeds. Failed materialization moves the metadata to `failed` and removes partial storage.
 
-The current Phase 2 slice prepares inventory and metadata contracts. It does not yet expose restore behavior or claim that a file inventory alone is a recoverable snapshot.
+Phase 2 intentionally does not expose restore behavior. A verified snapshot is a prerequisite for recovery, not proof that restoration is safe for every component or runtime state.
 
 ## Recovery design rule
 
