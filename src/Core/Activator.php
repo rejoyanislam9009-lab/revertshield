@@ -10,6 +10,9 @@ namespace RevertShield\Core;
 use RevertShield\Database\Migrator;
 use RevertShield\Support\Cleanup;
 
+/**
+ * Handles plugin activation.
+ */
 final class Activator {
 	/**
 	 * Activate plugin.
