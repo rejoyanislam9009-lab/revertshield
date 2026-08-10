@@ -56,7 +56,7 @@ final class SnapshotVerifier {
 		}
 
 		$storage_relpath = isset( $snapshot['storage_relpath'] ) ? wp_normalize_path( (string) $snapshot['storage_relpath'] ) : '';
-		if ( $storage_relpath !== wp_normalize_path( $location['relative'] ) ) {
+		if ( wp_normalize_path( $location['relative'] ) !== $storage_relpath ) {
 			return new \WP_Error(
 				'revertshield_snapshot_storage_mismatch',
 				__( 'The snapshot storage location does not match its generated identifier.', 'revertshield' )
