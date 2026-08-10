@@ -7,6 +7,9 @@
 
 namespace RevertShield\Admin;
 
+/**
+ * Registers and sanitizes RevertShield settings.
+ */
 final class Settings {
 	/**
 	 * Register hooks.
