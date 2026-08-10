@@ -10,9 +10,10 @@ RevertShield is a transactional change-safety layer for WordPress. It should ide
 - `Database`: schema and table naming.
 - `Ledger`: normalized change events with redacted context.
 - `Health`: local health probes and persisted results.
-- `Snapshot`: component resolution, inventory, integrity manifests, storage boundaries, content-addressed objects, independent verification, and snapshot lifecycle metadata.
-- `Admin`: settings and operational UI.
-- `Support`: bounded retention cleanup.
+- `Snapshot`: component resolution, inventory, integrity manifests, storage boundaries, content-addressed objects, independent verification, lifecycle metadata, and expiration cleanup.
+- `Admin`: settings, health UI, and authorized snapshot operations.
+- `Update`: preconditions for future safe update execution.
+- `Support`: bounded operational-ledger retention cleanup.
 
 ## Data design
 
@@ -44,12 +45,27 @@ Snapshot creation is deliberately fail-closed.
 8. Each source file is re-hashed immediately before copy. If it changed after inventory, snapshot creation fails.
 9. Every copied object is re-hashed after copy. A mismatch fails the snapshot and removes the partial snapshot directory.
 10. The manifest is written through a same-directory temporary file and committed by move, then its stored contents are re-read and verified.
-11. Apache/IIS deny rules and an index guard are written at the RevertShield uploads root as defense in depth; extensionless object naming is the primary execution-safety boundary.
+11. Apache/IIS deny rules and a non-executable index guard are written at the RevertShield uploads root as defense in depth; extensionless object naming is the primary execution-safety boundary.
 12. Snapshot metadata can transition from `preparing` to `ready` only after storage materialization succeeds. Failed materialization moves the metadata to `failed` and removes partial storage.
 13. A separate verifier then compares the database manifest with the stored manifest, re-hashes every stored object, and confirms represented byte counts. A snapshot creation call is not considered successful until this pass succeeds.
-14. A verification failure after finalization transitions the snapshot from `ready` to `corrupt`, preventing later recovery logic from treating it as usable.
+14. A verification failure during creation transitions the snapshot from `ready` to `corrupt`, preventing later recovery logic from treating it as usable.
+15. Admin snapshot creation requires `update_plugins`, a valid nonce, and a target that is independently revalidated against installed WordPress plugin metadata.
+16. Expiration cleanup deletes UUID-derived storage first. Only after successful deletion does metadata transition to `expired`; lightweight history is retained while manifest data is cleared.
 
-Phase 2 intentionally does not expose restore behavior. A verified snapshot is a prerequisite for recovery, not proof that restoration is safe for every component or runtime state.
+## Safe update boundary
+
+A snapshot UUID alone is never sufficient authorization to update a plugin. `SafeUpdateGate` requires all of the following before future update execution can proceed:
+
+1. snapshot metadata exists,
+2. lifecycle state is `ready`,
+3. component type is `plugin`,
+4. snapshot target exactly matches the requested plugin basename,
+5. expiration time is still in the future,
+6. independent snapshot integrity verification passes again.
+
+Gate verification failures block the update but do not automatically mutate snapshot state because transient filesystem failures are not proof of corruption.
+
+No plugin update is executed by the current gate. It is a precondition contract only.
 
 ## Recovery design rule
 
