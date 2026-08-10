@@ -61,7 +61,7 @@ final class PluginSnapshotService {
 	 * This internal service does not perform plugin updates or restore operations.
 	 *
 	 * @param string $plugin_file Installed plugin basename.
-	 * @return array|\WP_Error Final snapshot metadata row or an error.
+	 * @return array|\WP_Error Final snapshot information or an error.
 	 */
 	public function create( $plugin_file ) {
 		$component = $this->source_locator->locate( $plugin_file );
@@ -117,16 +117,17 @@ final class PluginSnapshotService {
 			return $ready;
 		}
 
-		$snapshot = $this->repository->find( $snapshot_uuid );
-		if ( ! $snapshot ) {
-			$this->storage->delete( $snapshot_uuid );
-			return new \WP_Error(
-				'revertshield_snapshot_finalization_unverified',
-				__( 'The finalized snapshot metadata could not be verified.', 'revertshield' )
-			);
-		}
-
-		return $snapshot;
+		return array(
+			'snapshot_uuid'   => $snapshot_uuid,
+			'component_type'  => 'plugin',
+			'component_name'  => $component['plugin_file'],
+			'state'           => SnapshotState::READY,
+			'storage_relpath' => $location['relative'],
+			'size_bytes'      => $manifest->total_size(),
+			'expires_at'      => $expires_at,
+			'object_count'    => $materialized['object_count'],
+			'manifest_sha256' => $materialized['manifest_sha256'],
+		);
 	}
 
 	/**
