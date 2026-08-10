@@ -9,6 +9,9 @@ namespace RevertShield\Health;
 
 use RevertShield\Database\Tables;
 
+/**
+ * Runs and stores local site health checks.
+ */
 final class HealthChecker {
 	/**
 	 * Check the public home page through the WordPress HTTP API.
@@ -42,6 +45,7 @@ final class HealthChecker {
 			$status = $code >= 200 && $code < 400 ? 'pass' : 'fail';
 		}
 
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery -- Health results are written to RevertShield's dedicated operational table.
 		$wpdb->insert(
 			Tables::health_runs(),
 			array(
@@ -73,7 +77,8 @@ final class HealthChecker {
 		global $wpdb;
 
 		$table = Tables::health_runs();
-		$row   = $wpdb->get_row(
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Latest health state must be read fresh from the custom table.
+		$row = $wpdb->get_row(
 			$wpdb->prepare( 'SELECT * FROM %i ORDER BY id DESC LIMIT 1', $table ),
 			ARRAY_A
 		);
@@ -90,6 +95,7 @@ final class HealthChecker {
 		global $wpdb;
 
 		$table = Tables::health_runs();
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Dashboard metric must reflect the current custom-table row count.
 		$count = $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM %i', $table ) );
 
 		return absint( $count );
