@@ -1,0 +1,19 @@
+<?xml version="1.0"?>
+<ruleset name="RevertShield">
+	<description>WordPress coding standards for RevertShield.</description>
+	<file>revertshield.php</file>
+	<file>src</file>
+	<file>uninstall.php</file>
+	<exclude-pattern>vendor/*</exclude-pattern>
+	<arg name="extensions" value="php"/>
+	<arg value="sp"/>
+	<rule ref="WordPress">
+		<!-- Namespaced source uses a PSR-4 class-to-file map rather than WordPress' legacy class filename convention. -->
+		<exclude name="WordPress.Files.FileName.NotHyphenatedLowercase"/>
+		<exclude name="WordPress.Files.FileName.InvalidClassFileName"/>
+		<!-- File-level and method-level docs remain required; concise class/property docs are allowed in this PSR-4 source tree. -->
+		<exclude name="Squiz.Commenting.ClassComment.Missing"/>
+		<exclude name="Generic.Commenting.DocComment.MissingShort"/>
+	</rule>
+	<rule ref="WordPress-Docs"/>
+</ruleset>

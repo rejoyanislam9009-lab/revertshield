@@ -1,24 +1,61 @@
 # RevertShield
 
-RevertShield is a WordPress change-safety plugin under active development.
+RevertShield is a local-first WordPress change-safety plugin. It records high-value maintenance events and runs health checks so administrators can understand what changed before recovery features are introduced.
 
-## Project goals
+> Development status: pre-1.0. Do not submit this repository snapshot to WordPress.org yet. The directory ZIP will be produced only from release-ready code.
 
-- Track high-value administrative changes.
-- Run local health checks around updates.
-- Introduce targeted snapshots and scoped recovery safely.
-- Follow WordPress.org Plugin Directory guidelines from the start.
+## Why RevertShield exists
 
-## Development principles
+A WordPress update can fail for many reasons, but the first operational question is usually the same: **what changed immediately before the site became unhealthy?** RevertShield builds a trustworthy local ledger around that question.
 
-- GPL-2.0-or-later compatible code and assets.
-- No telemetry by default.
-- No remote executable code.
-- No trialware or locally locked functionality in the directory build.
-- Validate and sanitize input; escape output.
-- Protect state-changing actions with capabilities and nonces.
-- Use dedicated indexed storage for high-volume operational data.
+## Current capabilities
 
-## Current milestone
+- Dedicated, indexed change ledger tables instead of unbounded serialized options.
+- Plugin activation and deactivation tracking.
+- Plugin, theme, and core upgrader event tracking.
+- Theme switch tracking.
+- Privacy-conscious tracking of selected critical option names without storing their values.
+- On-demand homepage HTTP health checks using the WordPress HTTP API.
+- Local health history, bounded retention, and uninstall controls.
+- Capability checks, nonces, input sanitization, output escaping, and redaction of obvious secret-like context keys.
 
-Phase 1 foundation and repository setup.
+## Architecture
+
+```text
+revertshield.php
+src/
+  Admin/       Admin UI and settings
+  Core/        Lifecycle and service coordination
+  Database/    Schema and table names
+  Health/      Health probes and results
+  Ledger/      Change observers and persistence
+  Support/     Retention and housekeeping
+assets/        Shipped admin assets
+docs/          Architecture, roadmap, release checklist
+.github/       CI and WordPress Plugin Check workflow
+```
+
+Recovery is intentionally adapter-based. RevertShield will not implement generic SQL reversal. A future recovery operation must know which component changed, what was snapshotted, whether the snapshot is intact, and whether restoring it is safe.
+
+## Development requirements
+
+- WordPress 6.5+
+- PHP 7.4+
+- Composer for development tooling only
+
+## Quality gates
+
+Pull requests and main-branch changes are expected to pass:
+
+- PHP syntax checks across supported PHP versions.
+- WordPress Coding Standards via PHPCS.
+- Official WordPress Plugin Check against the built distribution directory.
+- Release allowlist packaging so development-only files are never shipped accidentally.
+
+## WordPress.org policy
+
+GitHub is the development repository. WordPress.org SVN will be treated as a release repository only. Directory releases will use a versioned `Stable tag`, human-readable source, GPL-compatible assets, and no hidden telemetry or remotely delivered executable code.
+
+## License
+
+GPL-2.0-or-later. See `LICENSE`.
