@@ -1,0 +1,38 @@
+name: Phase 3 PHPCBF normalize
+
+on:
+  push:
+    branches:
+      - feature/snapshot-operations
+
+permissions:
+  contents: write
+
+jobs:
+  phpcbf:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/snapshot-operations
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+          tools: composer:v2
+      - name: Install development dependencies
+        run: composer install --no-interaction --no-progress --prefer-dist
+      - name: Normalize fixable WordPress coding-style findings
+        run: vendor/bin/phpcbf || true
+      - name: Commit formatter changes
+        run: |
+          if git diff --quiet; then
+            echo "No PHPCBF changes required."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add revertshield.php src uninstall.php
+          git commit -m "style: apply WordPress PHPCBF normalization"
+          git push origin HEAD:feature/snapshot-operations
