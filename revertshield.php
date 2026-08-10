@@ -23,14 +23,14 @@ define( 'REVERTSHIELD_PATH', plugin_dir_path( __FILE__ ) );
 define( 'REVERTSHIELD_URL', plugin_dir_url( __FILE__ ) );
 
 spl_autoload_register(
-	static function ( $class ) {
+	static function ( $class_name ) {
 		$prefix = 'RevertShield\\';
 
-		if ( 0 !== strpos( $class, $prefix ) ) {
+		if ( 0 !== strpos( $class_name, $prefix ) ) {
 			return;
 		}
 
-		$relative = substr( $class, strlen( $prefix ) );
+		$relative = substr( $class_name, strlen( $prefix ) );
 		$path     = REVERTSHIELD_PATH . 'src/' . str_replace( '\\', '/', $relative ) . '.php';
 
 		if ( is_readable( $path ) ) {
