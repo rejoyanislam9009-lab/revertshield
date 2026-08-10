@@ -15,6 +15,11 @@
 		<exclude name="WordPress.DB.DirectDatabaseQuery.DirectQuery"/>
 		<exclude name="WordPress.DB.DirectDatabaseQuery.NoCaching"/>
 		<exclude name="WordPress.DB.DirectDatabaseQuery.SchemaChange"/>
+		<!-- Literal internal keys such as "wordpress" are identifiers, not prose. -->
+		<exclude name="WordPress.WP.CapitalPDangit.MisspelledInText"/>
+		<!-- File-level and method-level docs remain required; class/property short descriptions are optional in this PSR-4 source tree. -->
+		<exclude name="Squiz.Commenting.ClassComment.Missing"/>
+		<exclude name="Generic.Commenting.DocComment.MissingShort"/>
 	</rule>
 	<rule ref="WordPress-Docs"/>
 </ruleset>
