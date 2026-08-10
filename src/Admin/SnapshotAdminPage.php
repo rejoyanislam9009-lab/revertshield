@@ -145,8 +145,8 @@ final class SnapshotAdminPage {
 			: 7;
 		$days = max( 1, min( 90, $days ) );
 
-		$settings = get_option( 'revertshield_settings', array() );
-		$settings = is_array( $settings ) ? $settings : array();
+		$settings                            = get_option( 'revertshield_settings', array() );
+		$settings                            = is_array( $settings ) ? $settings : array();
 		$settings['snapshot_retention_days'] = $days;
 		update_option( 'revertshield_settings', $settings, false );
 
