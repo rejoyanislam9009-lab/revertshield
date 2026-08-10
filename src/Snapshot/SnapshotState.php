@@ -14,6 +14,7 @@ final class SnapshotState {
 	const PREPARING = 'preparing';
 	const READY     = 'ready';
 	const FAILED    = 'failed';
+	const CORRUPT   = 'corrupt';
 	const EXPIRED   = 'expired';
 
 	/**
@@ -26,6 +27,7 @@ final class SnapshotState {
 			self::PREPARING,
 			self::READY,
 			self::FAILED,
+			self::CORRUPT,
 			self::EXPIRED,
 		);
 	}
