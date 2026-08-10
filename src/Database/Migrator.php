@@ -7,6 +7,9 @@
 
 namespace RevertShield\Database;
 
+/**
+ * Creates and upgrades RevertShield database tables.
+ */
 final class Migrator {
 	const SCHEMA_VERSION = '1';
 
@@ -41,7 +44,7 @@ final class Migrator {
 			object_type varchar(40) NOT NULL DEFAULT '',
 			object_name varchar(191) NOT NULL DEFAULT '',
 			actor_id bigint(20) unsigned NOT NULL DEFAULT 0,
-			source varchar(40) NOT NULL DEFAULT 'wordpress',
+			source varchar(40) NOT NULL DEFAULT 'core',
 			context longtext NULL,
 			created_at datetime NOT NULL,
 			PRIMARY KEY  (id),
