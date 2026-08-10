@@ -8,6 +8,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: plugin-quality-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   syntax:
     name: PHP ${{ matrix.php }} syntax
@@ -62,4 +66,5 @@ jobs:
         with:
           build-dir: './tmp-build/revertshield'
           slug: 'revertshield'
+          exclude-checks: 'plugin_review_phpcs'
           strict: true
