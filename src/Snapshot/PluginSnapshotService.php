@@ -142,13 +142,17 @@ final class PluginSnapshotService {
 	 * @return string
 	 */
 	private function expiration_time() {
+		$settings = get_option( 'revertshield_settings', array() );
+		$default  = isset( $settings['snapshot_retention_days'] ) ? absint( $settings['snapshot_retention_days'] ) : 7;
+		$default  = max( 1, min( 90, $default ) );
+
 		/**
-		 * Filter the default snapshot retention window.
+		 * Filter the configured snapshot retention window.
 		 *
 		 * @param int    $days           Snapshot retention days.
 		 * @param string $component_type Component type.
 		 */
-		$days = (int) apply_filters( 'revertshield_snapshot_retention_days', 7, 'plugin' );
+		$days = (int) apply_filters( 'revertshield_snapshot_retention_days', $default, 'plugin' );
 		$days = max( 1, min( 90, $days ) );
 
 		return gmdate( 'Y-m-d H:i:s', time() + ( DAY_IN_SECONDS * $days ) );
