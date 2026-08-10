@@ -35,7 +35,9 @@ final class SafeUpdateGate {
 	/**
 	 * Validate a snapshot as a precondition for a specific plugin update.
 	 *
-	 * This method does not execute an update or a restore.
+	 * This method does not execute an update or a restore. Verification errors
+	 * block the update but do not mutate snapshot state because some failures,
+	 * such as temporary filesystem unavailability, are not evidence of corruption.
 	 *
 	 * @param string $snapshot_uuid Snapshot UUID.
 	 * @param string $plugin_file   Installed plugin basename.
@@ -75,12 +77,6 @@ final class SafeUpdateGate {
 			);
 		}
 
-		$verified = $this->verifier->verify( $snapshot_uuid );
-		if ( is_wp_error( $verified ) ) {
-			$this->repository->mark_corrupt( $snapshot_uuid );
-			return $verified;
-		}
-
-		return $verified;
+		return $this->verifier->verify( $snapshot_uuid );
 	}
 }
