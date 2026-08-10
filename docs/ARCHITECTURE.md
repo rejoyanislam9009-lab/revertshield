@@ -10,6 +10,7 @@ RevertShield is a transactional change-safety layer for WordPress. It should ide
 - `Database`: schema and table naming.
 - `Ledger`: normalized change events with redacted context.
 - `Health`: local health probes and persisted results.
+- `Snapshot`: component inventory, integrity manifests, storage boundaries, and snapshot lifecycle metadata.
 - `Admin`: settings and operational UI.
 - `Support`: bounded retention cleanup.
 
@@ -25,11 +26,29 @@ Append-oriented event ledger. Core observers intentionally avoid storing option 
 
 Health probe results with status, HTTP response code, duration, and a short sanitized error message.
 
+### `wp_revertshield_snapshots`
+
+Snapshot lifecycle metadata. It stores a UUID, scoped component identifier, lifecycle state, uploads-relative storage path, integrity manifest, represented byte count, and timestamps. Absolute server paths are not persisted.
+
+## Snapshot trust boundary
+
+Snapshot preparation is deliberately fail-closed.
+
+1. A component adapter resolves an installed WordPress component from WordPress-owned metadata rather than accepting an arbitrary filesystem path.
+2. Canonical paths must remain inside the expected component root.
+3. Symlinks are rejected until their restore semantics can be defined safely.
+4. Every regular file in a prepared plugin inventory receives a SHA-256 digest and byte count.
+5. Storage locations are derived from a generated UUID and remain under `wp-content/uploads/revertshield/snapshots/`.
+6. Preflight checks verify the uploads boundary is writable and, when detectable, has adequate free disk space with a safety margin.
+7. A snapshot cannot become `ready` unless its manifest can be encoded and its metadata transition is persisted successfully.
+
+The current Phase 2 slice prepares inventory and metadata contracts. It does not yet expose restore behavior or claim that a file inventory alone is a recoverable snapshot.
+
 ## Recovery design rule
 
-RevertShield will not implement generic SQL reversal. Recovery must be performed through component adapters that know what was changed and what can be restored safely.
+RevertShield will not implement generic SQL reversal. Recovery must be performed through component adapters that know what changed and what can be restored safely.
 
-Future contracts will separate:
+The architecture separates:
 
 1. pre-flight collection,
 2. snapshot creation,
