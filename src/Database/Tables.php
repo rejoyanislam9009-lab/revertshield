@@ -7,6 +7,9 @@
 
 namespace RevertShield\Database;
 
+/**
+ * Resolves RevertShield custom-table names for the current site.
+ */
 final class Tables {
 	/**
 	 * Change ledger table.
