@@ -15,6 +15,9 @@ use RevertShield\Ledger\ChangeObserver;
 use RevertShield\Ledger\ChangeRepository;
 use RevertShield\Support\Cleanup;
 
+/**
+ * Coordinates RevertShield runtime services.
+ */
 final class Plugin {
 	/**
 	 * Boot plugin services.
