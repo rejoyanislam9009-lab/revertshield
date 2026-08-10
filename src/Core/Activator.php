@@ -8,6 +8,7 @@
 namespace RevertShield\Core;
 
 use RevertShield\Database\Migrator;
+use RevertShield\Snapshot\SnapshotCleanup;
 use RevertShield\Support\Cleanup;
 
 /**
@@ -26,9 +27,10 @@ final class Activator {
 			add_option(
 				'revertshield_settings',
 				array(
-					'retention_days'      => 90,
-					'log_option_names'    => 1,
-					'delete_on_uninstall' => 0,
+					'retention_days'          => 90,
+					'snapshot_retention_days' => 7,
+					'log_option_names'        => 1,
+					'delete_on_uninstall'     => 0,
 				),
 				'',
 				false
@@ -36,5 +38,6 @@ final class Activator {
 		}
 
 		Cleanup::schedule();
+		SnapshotCleanup::schedule();
 	}
 }
