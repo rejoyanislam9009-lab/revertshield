@@ -33,9 +33,10 @@ final class Settings {
 				'type'              => 'array',
 				'sanitize_callback' => array( $this, 'sanitize' ),
 				'default'           => array(
-					'retention_days'      => 90,
-					'log_option_names'    => 1,
-					'delete_on_uninstall' => 0,
+					'retention_days'          => 90,
+					'snapshot_retention_days' => 7,
+					'log_option_names'        => 1,
+					'delete_on_uninstall'     => 0,
 				),
 			)
 		);
@@ -48,13 +49,15 @@ final class Settings {
 	 * @return array
 	 */
 	public function sanitize( $input ) {
-		$input = is_array( $input ) ? $input : array();
-		$days  = isset( $input['retention_days'] ) ? absint( $input['retention_days'] ) : 90;
+		$input         = is_array( $input ) ? $input : array();
+		$days          = isset( $input['retention_days'] ) ? absint( $input['retention_days'] ) : 90;
+		$snapshot_days = isset( $input['snapshot_retention_days'] ) ? absint( $input['snapshot_retention_days'] ) : 7;
 
 		return array(
-			'retention_days'      => max( 1, min( 3650, $days ) ),
-			'log_option_names'    => empty( $input['log_option_names'] ) ? 0 : 1,
-			'delete_on_uninstall' => empty( $input['delete_on_uninstall'] ) ? 0 : 1,
+			'retention_days'          => max( 1, min( 3650, $days ) ),
+			'snapshot_retention_days' => max( 1, min( 90, $snapshot_days ) ),
+			'log_option_names'        => empty( $input['log_option_names'] ) ? 0 : 1,
+			'delete_on_uninstall'     => empty( $input['delete_on_uninstall'] ) ? 0 : 1,
 		);
 	}
 }
