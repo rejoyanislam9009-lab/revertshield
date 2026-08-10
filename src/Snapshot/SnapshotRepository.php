@@ -101,15 +101,18 @@ final class SnapshotRepository {
 				'manifest'   => $manifest_json,
 				'size_bytes' => $manifest->total_size(),
 			),
-			array( 'snapshot_uuid' => strtolower( $snapshot_uuid ) ),
+			array(
+				'snapshot_uuid' => strtolower( $snapshot_uuid ),
+				'state'         => SnapshotState::PREPARING,
+			),
 			array( '%s', '%s', '%d' ),
-			array( '%s' )
+			array( '%s', '%s' )
 		);
 
-		if ( false === $updated ) {
+		if ( 1 !== $updated ) {
 			return new \WP_Error(
 				'revertshield_snapshot_update_failed',
-				__( 'RevertShield could not finalize snapshot metadata.', 'revertshield' )
+				__( 'RevertShield could not finalize the expected preparing snapshot.', 'revertshield' )
 			);
 		}
 
@@ -133,12 +136,15 @@ final class SnapshotRepository {
 		$updated = $wpdb->update(
 			Tables::snapshots(),
 			array( 'state' => SnapshotState::FAILED ),
-			array( 'snapshot_uuid' => strtolower( $snapshot_uuid ) ),
+			array(
+				'snapshot_uuid' => strtolower( $snapshot_uuid ),
+				'state'         => SnapshotState::PREPARING,
+			),
 			array( '%s' ),
-			array( '%s' )
+			array( '%s', '%s' )
 		);
 
-		return false !== $updated;
+		return 1 === $updated;
 	}
 
 	/**
