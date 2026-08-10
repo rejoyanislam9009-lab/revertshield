@@ -148,6 +148,34 @@ final class SnapshotRepository {
 	}
 
 	/**
+	 * Mark a previously ready snapshot as corrupt after verification failure.
+	 *
+	 * @param string $snapshot_uuid Snapshot UUID.
+	 * @return bool
+	 */
+	public function mark_corrupt( $snapshot_uuid ) {
+		global $wpdb;
+
+		if ( ! $this->is_valid_uuid( $snapshot_uuid ) ) {
+			return false;
+		}
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Corruption state must be persisted immediately so recovery cannot consume the snapshot.
+		$updated = $wpdb->update(
+			Tables::snapshots(),
+			array( 'state' => SnapshotState::CORRUPT ),
+			array(
+				'snapshot_uuid' => strtolower( $snapshot_uuid ),
+				'state'         => SnapshotState::READY,
+			),
+			array( '%s' ),
+			array( '%s', '%s' )
+		);
+
+		return 1 === $updated;
+	}
+
+	/**
 	 * Read a snapshot record by UUID.
 	 *
 	 * @param string $snapshot_uuid Snapshot UUID.
