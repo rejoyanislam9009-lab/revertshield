@@ -165,12 +165,11 @@ final class GuardedUpdateAdminPage {
 						<thead><tr>
 							<th><?php echo esc_html__( 'Plugin', 'revertshield' ); ?></th>
 							<th><?php echo esc_html__( 'Version', 'revertshield' ); ?></th>
-							<th><?php echo esc_html__( 'Verified snapshot', 'revertshield' ); ?></th>
-							<th><?php echo esc_html__( 'Action', 'revertshield' ); ?></th>
+							<th><?php echo esc_html__( 'Guarded action', 'revertshield' ); ?></th>
 						</tr></thead>
 						<tbody>
 						<?php if ( empty( $updates ) ) : ?>
-							<tr><td colspan="4"><?php echo esc_html__( 'WordPress currently reports no plugin updates that RevertShield can run.', 'revertshield' ); ?></td></tr>
+							<tr><td colspan="3"><?php echo esc_html__( 'WordPress currently reports no plugin updates that RevertShield can run.', 'revertshield' ); ?></td></tr>
 						<?php else : ?>
 							<?php foreach ( $updates as $plugin_file => $plugin ) : ?>
 								<?php
@@ -184,13 +183,15 @@ final class GuardedUpdateAdminPage {
 									<td><?php echo esc_html( $current ); ?> &rarr; <?php echo esc_html( $new_version ); ?></td>
 									<td>
 										<?php if ( empty( $eligible ) ) : ?>
-											<span class="revertshield-muted"><?php echo esc_html__( 'No eligible snapshot. Create a new verified snapshot first.', 'revertshield' ); ?></span>
+											<p class="revertshield-muted"><?php echo esc_html__( 'No eligible snapshot. Create a new verified snapshot first.', 'revertshield' ); ?></p>
+											<a class="button" href="<?php echo esc_url( admin_url( 'tools.php?page=revertshield-snapshots' ) ); ?>"><?php echo esc_html__( 'Create Snapshot', 'revertshield' ); ?></a>
 										<?php else : ?>
 											<form action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" method="post" class="revertshield-guarded-update-form">
 												<input type="hidden" name="action" value="revertshield_guarded_plugin_update">
 												<input type="hidden" name="plugin_file" value="<?php echo esc_attr( $plugin_file ); ?>">
 												<?php wp_nonce_field( 'revertshield_guarded_plugin_update' ); ?>
-												<select name="snapshot_uuid" required>
+												<label class="screen-reader-text" for="revertshield-snapshot-<?php echo esc_attr( substr( $eligible[0]['snapshot_uuid'], 0, 8 ) ); ?>"><?php echo esc_html__( 'Verified snapshot', 'revertshield' ); ?></label>
+												<select id="revertshield-snapshot-<?php echo esc_attr( substr( $eligible[0]['snapshot_uuid'], 0, 8 ) ); ?>" name="snapshot_uuid" required>
 													<?php foreach ( $eligible as $snapshot ) : ?>
 														<?php
 														$label = sprintf(
@@ -204,13 +205,7 @@ final class GuardedUpdateAdminPage {
 														<option value="<?php echo esc_attr( $snapshot['snapshot_uuid'] ); ?>"><?php echo esc_html( $label ); ?></option>
 													<?php endforeach; ?>
 												</select>
-										<?php endif; ?>
-									</td>
-									<td>
-										<?php if ( empty( $eligible ) ) : ?>
-											<a class="button" href="<?php echo esc_url( admin_url( 'tools.php?page=revertshield-snapshots' ) ); ?>"><?php echo esc_html__( 'Create Snapshot', 'revertshield' ); ?></a>
-										<?php else : ?>
-											<?php submit_button( __( 'Run Guarded Update', 'revertshield' ), 'primary', 'submit', false ); ?>
+												<?php submit_button( __( 'Run Guarded Update', 'revertshield' ), 'primary', 'submit', false ); ?>
 											</form>
 										<?php endif; ?>
 									</td>
