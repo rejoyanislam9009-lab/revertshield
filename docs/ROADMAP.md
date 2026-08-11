@@ -1,6 +1,6 @@
 # Roadmap
 
-## Phase 1 - Foundation
+## Phase 1 - Foundation - complete
 
 - Plugin bootstrap and lifecycle.
 - Dedicated indexed tables.
@@ -10,21 +10,39 @@
 - Retention and uninstall controls.
 - GitHub CI and WordPress Plugin Check.
 
-## Phase 2 - Snapshot contracts
+## Phase 2 - Snapshot integrity foundation - complete on `develop`
 
-- Snapshot interfaces and immutable manifest format.
-- Plugin metadata capture before updates.
+- Immutable manifest format and explicit lifecycle states.
+- Canonical installed-plugin source resolution.
 - Filesystem storage boundary and disk-space preflight.
-- Snapshot retention policies.
-- Checksums and integrity verification.
+- Extensionless content-addressed snapshot objects.
+- SHA-256 verification before and after copy.
+- Independent post-finalization integrity verification.
+- Bounded expiration metadata and safe uninstall cleanup.
 
-## Phase 3 - Safe plugin update flow
+## Phase 3A - Admin snapshot operations - active
 
-- Opt-in update guard for selected plugins.
-- Pre-update snapshot.
+- Admin-only, nonce-protected verified plugin snapshots.
+- Snapshot history and lifecycle visibility.
+- Configurable snapshot retention.
+- Bounded daily expiration cleanup.
+- Safe-update precondition requiring a matching, unexpired, independently verified ready snapshot.
+
+## Phase 3B - Safe plugin update execution
+
+- Explicit opt-in safe update action for selected plugins.
+- Verified pre-update snapshot required by the safe-update gate.
+- Update execution through WordPress-owned upgrader APIs.
 - Post-update homepage and REST health policies.
-- Failed-health incident record.
-- Manual scoped restore for supported plugin updates.
+- Failed-health incident record and pause behavior.
+
+## Phase 3C - Scoped recovery
+
+- Recovery eligibility contract.
+- Manual restore for supported plugin-file snapshots.
+- Restore staging and atomic replacement strategy.
+- Post-restore integrity and health verification.
+- No generic SQL rollback.
 
 ## Phase 4 - Policy engine
 

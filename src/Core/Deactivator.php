@@ -7,6 +7,7 @@
 
 namespace RevertShield\Core;
 
+use RevertShield\Snapshot\SnapshotCleanup;
 use RevertShield\Support\Cleanup;
 
 /**
@@ -20,5 +21,6 @@ final class Deactivator {
 	 */
 	public static function deactivate() {
 		Cleanup::unschedule();
+		SnapshotCleanup::unschedule();
 	}
 }
