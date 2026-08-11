@@ -100,8 +100,6 @@ final class ChangeObserver {
 	 * @return void
 	 */
 	public function upgrade_completed( $upgrader, $options ) {
-		unset( $upgrader );
-
 		$type   = isset( $options['type'] ) ? sanitize_key( $options['type'] ) : 'unknown';
 		$action = isset( $options['action'] ) ? sanitize_key( $options['action'] ) : 'update';
 		$names  = array();
@@ -114,6 +112,22 @@ final class ChangeObserver {
 			$names = array_map( 'sanitize_text_field', $options['themes'] );
 		} elseif ( isset( $options['theme'] ) ) {
 			$names[] = sanitize_text_field( $options['theme'] );
+		}
+
+		// Single uploaded-plugin installs do not include a plugin basename in hook_extra.
+		if ( empty( $names ) && 'plugin' === $type && is_object( $upgrader ) && method_exists( $upgrader, 'plugin_info' ) ) {
+			$plugin_file = $upgrader->plugin_info();
+			if ( is_string( $plugin_file ) && '' !== $plugin_file ) {
+				$names[] = sanitize_text_field( $plugin_file );
+			}
+		}
+
+		// Apply the equivalent result-based fallback for single theme installs.
+		if ( empty( $names ) && 'theme' === $type && is_object( $upgrader ) && method_exists( $upgrader, 'theme_info' ) ) {
+			$theme = $upgrader->theme_info();
+			if ( $theme instanceof \WP_Theme ) {
+				$names[] = sanitize_text_field( $theme->get_stylesheet() );
+			}
 		}
 
 		if ( empty( $names ) ) {
