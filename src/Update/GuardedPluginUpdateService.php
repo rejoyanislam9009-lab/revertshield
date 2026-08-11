@@ -30,10 +30,10 @@ final class GuardedPluginUpdateService {
 	/**
 	 * Constructor.
 	 *
-	 * @param SafeUpdateGate|null       $gate           Optional safe-update gate.
-	 * @param PluginSourceLocator|null  $source_locator Optional plugin locator.
-	 * @param HealthChecker|null        $health         Optional health checker.
-	 * @param ChangeRepository|null     $ledger         Optional change ledger.
+	 * @param SafeUpdateGate|null      $gate           Optional safe-update gate.
+	 * @param PluginSourceLocator|null $source_locator Optional plugin locator.
+	 * @param HealthChecker|null       $health         Optional health checker.
+	 * @param ChangeRepository|null    $ledger         Optional change ledger.
 	 */
 	public function __construct(
 		SafeUpdateGate $gate = null,
@@ -176,13 +176,13 @@ final class GuardedPluginUpdateService {
 		);
 
 		return array(
-			'plugin_file'    => $plugin_file,
-			'snapshot_uuid'  => $snapshot_uuid,
-			'from_version'   => $before_version,
-			'to_version'     => $after_version,
-			'health_status'  => $health['status'],
-			'http_code'      => absint( $health['http_code'] ),
-			'duration_ms'    => absint( $health['duration_ms'] ),
+			'plugin_file'   => $plugin_file,
+			'snapshot_uuid' => $snapshot_uuid,
+			'from_version'  => $before_version,
+			'to_version'    => $after_version,
+			'health_status' => $health['status'],
+			'http_code'     => absint( $health['http_code'] ),
+			'duration_ms'   => absint( $health['duration_ms'] ),
 		);
 	}
 
@@ -250,10 +250,10 @@ final class GuardedPluginUpdateService {
 			'plugin',
 			$plugin_file,
 			array(
-				'snapshot_uuid' => $snapshot_uuid,
-				'error_code'    => sanitize_key( $error_code ),
-				'from_version'  => sanitize_text_field( $before_version ),
-				'target_version'=> sanitize_text_field( $target_version ),
+				'snapshot_uuid'  => $snapshot_uuid,
+				'error_code'     => sanitize_key( $error_code ),
+				'from_version'   => sanitize_text_field( $before_version ),
+				'target_version' => sanitize_text_field( $target_version ),
 			),
 			'guarded_update'
 		);
