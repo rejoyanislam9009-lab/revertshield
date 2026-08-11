@@ -7,6 +7,7 @@
 
 namespace RevertShield\Core;
 
+use RevertShield\Admin\AdminNavigation;
 use RevertShield\Admin\AdminPage;
 use RevertShield\Admin\GuardedUpdateAdminPage;
 use RevertShield\Admin\Settings;
@@ -42,6 +43,7 @@ final class Plugin {
 
 		( new ChangeObserver( $repository ) )->register();
 		( new Settings() )->register();
+		( new AdminNavigation() )->register();
 		( new AdminPage( $repository, $health ) )->register();
 		( new SnapshotAdminPage( $snapshot_repository, new PluginSnapshotService(), $repository ) )->register();
 		( new GuardedUpdateAdminPage( $snapshot_repository, $guarded_update ) )->register();
