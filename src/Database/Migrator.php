@@ -11,7 +11,7 @@ namespace RevertShield\Database;
  * Creates and upgrades RevertShield database tables.
  */
 final class Migrator {
-	const SCHEMA_VERSION = '1';
+	const SCHEMA_VERSION = '2';
 
 	/**
 	 * Run migration when schema changes.
@@ -37,6 +37,7 @@ final class Migrator {
 		$charset_collate = $wpdb->get_charset_collate();
 		$changes         = Tables::changes();
 		$health_runs     = Tables::health_runs();
+		$snapshots       = Tables::snapshots();
 
 		$sql_changes = "CREATE TABLE {$changes} (
 			id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
@@ -69,8 +70,28 @@ final class Migrator {
 			KEY created_at (created_at)
 		) {$charset_collate};";
 
+		$sql_snapshots = "CREATE TABLE {$snapshots} (
+			id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+			snapshot_uuid char(36) NOT NULL,
+			component_type varchar(40) NOT NULL,
+			component_name varchar(191) NOT NULL,
+			state varchar(30) NOT NULL DEFAULT 'preparing',
+			storage_relpath varchar(255) NOT NULL DEFAULT '',
+			manifest longtext NULL,
+			size_bytes bigint(20) unsigned NOT NULL DEFAULT 0,
+			created_at datetime NOT NULL,
+			expires_at datetime NULL,
+			PRIMARY KEY  (id),
+			UNIQUE KEY snapshot_uuid (snapshot_uuid),
+			KEY component (component_type, component_name),
+			KEY state (state),
+			KEY created_at (created_at),
+			KEY expires_at (expires_at)
+		) {$charset_collate};";
+
 		dbDelta( $sql_changes );
 		dbDelta( $sql_health );
+		dbDelta( $sql_snapshots );
 
 		update_option( 'revertshield_schema_version', self::SCHEMA_VERSION, false );
 	}
