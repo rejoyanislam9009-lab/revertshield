@@ -89,7 +89,7 @@ final class GuardedUpdateAdminPage {
 
 		check_admin_referer( 'revertshield_guarded_plugin_update' );
 
-		$plugin_file = isset( $_POST['plugin_file'] )
+		$plugin_file   = isset( $_POST['plugin_file'] )
 			? sanitize_text_field( wp_unslash( $_POST['plugin_file'] ) )
 			: '';
 		$snapshot_uuid = isset( $_POST['snapshot_uuid'] )
@@ -131,8 +131,10 @@ final class GuardedUpdateAdminPage {
 		uasort(
 			$updates,
 			static function ( $left, $right ) {
-				$left_name  = isset( $left->Name ) ? $left->Name : '';
-				$right_name = isset( $right->Name ) ? $right->Name : '';
+				$left_data  = (array) $left;
+				$right_data = (array) $right;
+				$left_name  = isset( $left_data['Name'] ) ? $left_data['Name'] : '';
+				$right_name = isset( $right_data['Name'] ) ? $right_data['Name'] : '';
 				return strcasecmp( $left_name, $right_name );
 			}
 		);
@@ -173,10 +175,12 @@ final class GuardedUpdateAdminPage {
 						<?php else : ?>
 							<?php foreach ( $updates as $plugin_file => $plugin ) : ?>
 								<?php
+								$plugin_data = (array) $plugin;
+								$update_data = isset( $plugin_data['update'] ) ? (array) $plugin_data['update'] : array();
 								$eligible    = $this->eligible_snapshots( $snapshots, $plugin_file );
-								$current     = isset( $plugin->Version ) ? sanitize_text_field( $plugin->Version ) : '';
-								$new_version = isset( $plugin->update->new_version ) ? sanitize_text_field( $plugin->update->new_version ) : '';
-								$name        = isset( $plugin->Name ) ? sanitize_text_field( $plugin->Name ) : $plugin_file;
+								$current     = isset( $plugin_data['Version'] ) ? sanitize_text_field( $plugin_data['Version'] ) : '';
+								$new_version = isset( $update_data['new_version'] ) ? sanitize_text_field( $update_data['new_version'] ) : '';
+								$name        = isset( $plugin_data['Name'] ) ? sanitize_text_field( $plugin_data['Name'] ) : $plugin_file;
 								?>
 								<tr>
 									<td><strong><?php echo esc_html( $name ); ?></strong><br><span class="revertshield-muted"><code><?php echo esc_html( $plugin_file ); ?></code></span></td>
