@@ -7,7 +7,7 @@ Stable tag: 0.3.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
-Track important WordPress maintenance changes, create integrity-verified plugin snapshots, and run guarded plugin updates with post-update health checks without sending telemetry.
+Track WordPress changes, create verified plugin snapshots, and run guarded updates with local post-update health checks.
 
 == Description ==
 
