@@ -14,11 +14,42 @@ use RevertShield\Database\Tables;
  */
 final class HealthChecker {
 	/**
+	 * Optional ecosystem probe adapters.
+	 *
+	 * @var HealthProbeAdapter[]
+	 */
+	private $adapters = array();
+
+	/**
+	 * Constructor.
+	 *
+	 * @param HealthProbeAdapter[]|null $adapters Optional adapters. Null uses the built-in adapters.
+	 */
+	public function __construct( $adapters = null ) {
+		if ( null === $adapters ) {
+			$adapters = array(
+				new WooCommerceHealthAdapter(),
+			);
+		}
+
+		if ( ! is_array( $adapters ) ) {
+			return;
+		}
+
+		foreach ( $adapters as $adapter ) {
+			if ( $adapter instanceof HealthProbeAdapter ) {
+				$this->adapters[] = $adapter;
+			}
+		}
+	}
+
+	/**
 	 * Run the current multi-probe site-health suite.
 	 *
-	 * The suite intentionally remains small and local: the public homepage and
-	 * the site's WordPress REST API index. Only the aggregate suite row is
-	 * persisted, while bounded per-probe details are returned to the caller.
+	 * The required core suite covers the public homepage and WordPress REST API
+	 * index. Applicable ecosystem adapters may add bounded read-only HTTP probes.
+	 * Only the aggregate suite row is persisted, while bounded per-probe details
+	 * are returned to the caller.
 	 *
 	 * @return array
 	 */
@@ -29,6 +60,32 @@ final class HealthChecker {
 			'homepage_http' => $homepage,
 			'rest_api_http' => $rest,
 		);
+
+		foreach ( $this->adapters as $adapter ) {
+			if ( ! $adapter->is_applicable() ) {
+				continue;
+			}
+
+			$targets = $adapter->probe_targets();
+			if ( ! is_array( $targets ) ) {
+				continue;
+			}
+
+			foreach ( $targets as $name => $target ) {
+				$name = sanitize_key( $name );
+				if ( '' === $name || isset( $probes[ $name ] ) ) {
+					continue;
+				}
+
+				if ( ! is_string( $target ) || '' === $target ) {
+					$probes[ $name ] = $this->failed_probe( $name, '', __( 'Probe target is invalid.', 'revertshield' ) );
+					continue;
+				}
+
+				$probes[ $name ] = $this->run_http_probe( $name, $target );
+			}
+		}
+
 		$status   = 'pass';
 		$failed   = array();
 		$duration = 0;
@@ -41,12 +98,16 @@ final class HealthChecker {
 			}
 		}
 
-		$message = sprintf(
-			/* translators: 1: homepage HTTP code, 2: REST API HTTP code. */
-			__( 'Homepage HTTP %1$d; REST API HTTP %2$d.', 'revertshield' ),
-			absint( $homepage['http_code'] ),
-			absint( $rest['http_code'] )
-		);
+		$message_parts = array();
+		foreach ( $probes as $name => $probe ) {
+			$message_parts[] = sprintf(
+				/* translators: 1: health probe label, 2: HTTP response code. */
+				__( '%1$s HTTP %2$d', 'revertshield' ),
+				$this->probe_label( $name ),
+				absint( $probe['http_code'] )
+			);
+		}
+		$message = implode( '; ', $message_parts ) . '.';
 
 		if ( ! empty( $failed ) ) {
 			$message .= ' ' . sprintf(
@@ -127,6 +188,45 @@ final class HealthChecker {
 			'duration_ms' => max( 0, $duration ),
 			'message'     => $message,
 		);
+	}
+
+	/**
+	 * Build a normalized failed probe result without making an HTTP request.
+	 *
+	 * @param string $check_type Probe identifier.
+	 * @param string $target     Probe URL.
+	 * @param string $message    Failure message.
+	 * @return array
+	 */
+	private function failed_probe( $check_type, $target, $message ) {
+		return array(
+			'check_type'  => sanitize_key( $check_type ),
+			'target'      => esc_url_raw( $target ),
+			'status'      => 'fail',
+			'http_code'   => 0,
+			'duration_ms' => 0,
+			'message'     => sanitize_text_field( $message ),
+		);
+	}
+
+	/**
+	 * Return a human-readable bounded label for a probe identifier.
+	 *
+	 * @param string $check_type Probe identifier.
+	 * @return string
+	 */
+	private function probe_label( $check_type ) {
+		$labels = array(
+			'homepage_http'               => __( 'Homepage', 'revertshield' ),
+			'rest_api_http'               => __( 'REST API', 'revertshield' ),
+			'woocommerce_store_api_http'  => __( 'WooCommerce Store API', 'revertshield' ),
+		);
+
+		if ( isset( $labels[ $check_type ] ) ) {
+			return $labels[ $check_type ];
+		}
+
+		return sanitize_text_field( $check_type );
 	}
 
 	/**
