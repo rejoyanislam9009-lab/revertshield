@@ -186,7 +186,9 @@ final class RecoveryAdminPage {
 									<td><code><?php echo esc_html( $snapshot['component_name'] ); ?></code></td>
 									<td>
 										<code><?php echo esc_html( $snapshot['snapshot_uuid'] ); ?></code>
-										<?php if ( $is_recommended ) : ?><span class="revertshield-recommendation-badge"><?php echo esc_html__( 'Recommended review', 'revertshield' ); ?></span><?php endif; ?>
+										<?php if ( $is_recommended ) : ?>
+											<span class="revertshield-recommendation-badge"><?php echo esc_html__( 'Recommended review', 'revertshield' ); ?></span>
+										<?php endif; ?>
 									</td>
 									<td><?php echo esc_html( get_date_from_gmt( $snapshot['created_at'], 'Y-m-d H:i:s' ) ); ?></td>
 									<td><?php echo esc_html( get_date_from_gmt( $snapshot['expires_at'], 'Y-m-d H:i:s' ) ); ?></td>
