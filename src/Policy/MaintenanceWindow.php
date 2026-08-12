@@ -74,8 +74,19 @@ final class MaintenanceWindow {
 	 * @return int
 	 */
 	private function local_minutes() {
-		$timestamp = $this->now_provider ? (int) call_user_func( $this->now_provider ) : (int) current_time( 'timestamp' );
-		return ( (int) gmdate( 'G', $timestamp ) * 60 ) + (int) gmdate( 'i', $timestamp );
+		if ( $this->now_provider ) {
+			$provided = call_user_func( $this->now_provider );
+
+			if ( $provided instanceof \DateTimeInterface ) {
+				return ( (int) $provided->format( 'G' ) * 60 ) + (int) $provided->format( 'i' );
+			}
+
+			$timestamp = (int) $provided;
+			return ( (int) wp_date( 'G', $timestamp, wp_timezone() ) * 60 ) + (int) wp_date( 'i', $timestamp, wp_timezone() );
+		}
+
+		$now = current_datetime();
+		return ( (int) $now->format( 'G' ) * 60 ) + (int) $now->format( 'i' );
 	}
 
 	/**
