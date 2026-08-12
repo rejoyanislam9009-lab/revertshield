@@ -10,12 +10,15 @@ namespace RevertShield\Core;
 use RevertShield\Admin\AdminNavigation;
 use RevertShield\Admin\AdminPage;
 use RevertShield\Admin\GuardedUpdateAdminPage;
+use RevertShield\Admin\RecoveryAdminPage;
 use RevertShield\Admin\Settings;
 use RevertShield\Admin\SnapshotAdminPage;
 use RevertShield\Database\Migrator;
 use RevertShield\Health\HealthChecker;
 use RevertShield\Ledger\ChangeObserver;
 use RevertShield\Ledger\ChangeRepository;
+use RevertShield\Recovery\PluginRecoveryService;
+use RevertShield\Recovery\RecoveryEligibility;
 use RevertShield\Snapshot\PluginSnapshotService;
 use RevertShield\Snapshot\SnapshotCleanup;
 use RevertShield\Snapshot\SnapshotRepository;
@@ -35,11 +38,13 @@ final class Plugin {
 	public function boot() {
 		Migrator::maybe_upgrade();
 
-		$repository          = new ChangeRepository();
-		$health              = new HealthChecker();
-		$snapshot_repository = new SnapshotRepository();
-		$safe_update_gate    = new SafeUpdateGate( $snapshot_repository );
-		$guarded_update      = new GuardedPluginUpdateService( $safe_update_gate, null, $health, $repository );
+		$repository           = new ChangeRepository();
+		$health               = new HealthChecker();
+		$snapshot_repository  = new SnapshotRepository();
+		$safe_update_gate     = new SafeUpdateGate( $snapshot_repository );
+		$guarded_update       = new GuardedPluginUpdateService( $safe_update_gate, null, $health, $repository );
+		$recovery_eligibility = new RecoveryEligibility( $snapshot_repository );
+		$recovery_service     = new PluginRecoveryService( $recovery_eligibility, $snapshot_repository, null, null, null, $health, $repository );
 
 		( new ChangeObserver( $repository ) )->register();
 		( new Settings() )->register();
@@ -47,6 +52,7 @@ final class Plugin {
 		( new AdminPage( $repository, $health ) )->register();
 		( new SnapshotAdminPage( $snapshot_repository, new PluginSnapshotService(), $repository ) )->register();
 		( new GuardedUpdateAdminPage( $snapshot_repository, $guarded_update ) )->register();
+		( new RecoveryAdminPage( $snapshot_repository, $recovery_service ) )->register();
 		( new Cleanup() )->register();
 		( new SnapshotCleanup( $snapshot_repository ) )->register();
 	}
