@@ -7,10 +7,24 @@
 
 namespace RevertShield\Snapshot;
 
+use RevertShield\Support\SiteContext;
+
 /**
  * Resolves snapshot paths under the WordPress uploads directory.
  */
 final class StorageLocator {
+	/** @var SiteContext */
+	private $site_context;
+
+	/**
+	 * Constructor.
+	 *
+	 * @param SiteContext|null $site_context Optional site context.
+	 */
+	public function __construct( SiteContext $site_context = null ) {
+		$this->site_context = $site_context ? $site_context : new SiteContext();
+	}
+
 	/**
 	 * Resolve a snapshot storage location.
 	 *
@@ -35,6 +49,11 @@ final class StorageLocator {
 
 		$base_dir = untrailingslashit( wp_normalize_path( $uploads['basedir'] ) );
 		$relative = 'revertshield/snapshots/' . strtolower( $snapshot_uuid );
+
+		if ( $this->site_context->is_multisite() ) {
+			$relative = 'revertshield/sites/' . $this->site_context->blog_id() . '/snapshots/' . strtolower( $snapshot_uuid );
+		}
+
 		$absolute = wp_normalize_path( trailingslashit( $base_dir ) . $relative );
 
 		if ( 0 !== strpos( $absolute, trailingslashit( $base_dir ) ) ) {
