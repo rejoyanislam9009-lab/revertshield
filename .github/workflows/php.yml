@@ -105,8 +105,16 @@ jobs:
         run: wp eval-file "$GITHUB_WORKSPACE/tests/runtime-woocommerce-live.php" --path=/tmp/revertshield-wp
 
   multisite-runtime:
-    name: WordPress latest / PHP 8.4 Multisite safety
+    name: WordPress ${{ matrix.wordpress }} / PHP ${{ matrix.php }} Multisite safety
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - wordpress: '6.5'
+            php: '7.4'
+          - wordpress: 'latest'
+            php: '8.4'
     services:
       mysql:
         image: mysql:8.0
@@ -123,7 +131,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: shivammathur/setup-php@v2
         with:
-          php-version: '8.4'
+          php-version: ${{ matrix.php }}
           coverage: none
           tools: wp-cli
       - name: Build installable plugin
@@ -133,7 +141,7 @@ jobs:
       - name: Install WordPress Multisite
         run: |
           mkdir -p /tmp/revertshield-ms
-          wp core download --path=/tmp/revertshield-ms --version=latest --force
+          wp core download --path=/tmp/revertshield-ms --version="${{ matrix.wordpress }}" --force
           wp config create --path=/tmp/revertshield-ms --dbname=revertshield_ms_test --dbuser=root --dbpass=root --dbhost=127.0.0.1:3306 --skip-check
           wp db create --path=/tmp/revertshield-ms
           wp core multisite-install --path=/tmp/revertshield-ms --url=http://revertshield.test --title="RevertShield Multisite Test" --admin_user=admin --admin_password=test-password --admin_email=test@example.com --skip-email
