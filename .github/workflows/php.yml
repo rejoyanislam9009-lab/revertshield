@@ -196,6 +196,4 @@ jobs:
         run: |
           wp plugin check revertshield --format=json --require=/tmp/revertshield-plugin-check/wp-content/plugins/plugin-check/cli.php --path=/tmp/revertshield-plugin-check > /tmp/plugin-check-results.json
           cat /tmp/plugin-check-results.json
-          if [ -s /tmp/plugin-check-results.json ]; then
-            php -r '$results = json_decode(file_get_contents("/tmp/plugin-check-results.json"), true); if (!is_array($results)) { fwrite(STDERR, "Plugin Check did not return valid JSON.\n"); exit(1); } if (count($results) > 0) { fwrite(STDERR, "Strict Plugin Check found findings.\n"); exit(1); }'
-          fi
+          php -r '$raw = trim(file_get_contents("/tmp/plugin-check-results.json")); if ("" === $raw) { exit(0); } $results = json_decode($raw, true); if (!is_array($results)) { fwrite(STDERR, "Plugin Check did not return valid JSON.\n"); exit(1); } if (count($results) > 0) { fwrite(STDERR, "Strict Plugin Check found findings.\n"); exit(1); }'
