@@ -93,6 +93,8 @@ jobs:
           wp plugin activate revertshield --path=/tmp/revertshield-wp
       - name: Run runtime smoke assertions
         run: wp eval-file "$GITHUB_WORKSPACE/tests/runtime-smoke.php" --path=/tmp/revertshield-wp
+      - name: Run snapshot, update, recovery regression assertions
+        run: wp eval-file "$GITHUB_WORKSPACE/tests/runtime-regression.php" --path=/tmp/revertshield-wp
 
   plugin-check:
     name: WordPress Plugin Check
