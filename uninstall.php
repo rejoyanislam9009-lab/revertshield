@@ -9,6 +9,15 @@ if ( ! defined( 'WP_UNINSTALL_PLUGIN' ) ) {
 	exit;
 }
 
+// RevertShield settings are site-scoped. A single site's delete-on-uninstall
+// choice is not sufficient authorization to erase data belonging to an entire
+// Multisite network, and deleting only the current site's data would create a
+// misleading partial cleanup. Until a bounded network-wide deletion policy is
+// available, Multisite uninstall therefore retains all RevertShield site data.
+if ( is_multisite() ) {
+	return;
+}
+
 $revertshield_settings = get_option( 'revertshield_settings', array() );
 
 if ( empty( $revertshield_settings['delete_on_uninstall'] ) ) {
