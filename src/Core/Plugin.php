@@ -18,12 +18,14 @@ use RevertShield\Database\Migrator;
 use RevertShield\Health\HealthChecker;
 use RevertShield\Ledger\ChangeObserver;
 use RevertShield\Ledger\ChangeRepository;
+use RevertShield\Policy\MaintenanceWindow;
 use RevertShield\Recovery\PluginRecoveryService;
 use RevertShield\Recovery\RecoveryEligibility;
 use RevertShield\Snapshot\PluginSnapshotService;
 use RevertShield\Snapshot\SnapshotCleanup;
 use RevertShield\Snapshot\SnapshotRepository;
 use RevertShield\Support\Cleanup;
+use RevertShield\Update\GuardedPluginUpdateBatchService;
 use RevertShield\Update\GuardedPluginUpdateService;
 use RevertShield\Update\SafeUpdateGate;
 
@@ -43,7 +45,9 @@ final class Plugin {
 		$health               = new HealthChecker();
 		$snapshot_repository  = new SnapshotRepository();
 		$safe_update_gate     = new SafeUpdateGate( $snapshot_repository );
-		$guarded_update       = new GuardedPluginUpdateService( $safe_update_gate, null, $health, $repository );
+		$maintenance_window   = new MaintenanceWindow();
+		$guarded_update       = new GuardedPluginUpdateService( $safe_update_gate, null, $health, $repository, $maintenance_window );
+		$guarded_batch        = new GuardedPluginUpdateBatchService( $guarded_update, $repository );
 		$recovery_eligibility = new RecoveryEligibility( $snapshot_repository );
 		$recovery_service     = new PluginRecoveryService( $recovery_eligibility, $snapshot_repository, null, null, null, $health, $repository );
 
@@ -53,7 +57,7 @@ final class Plugin {
 		( new AdminNoticeCenter() )->register();
 		( new AdminPage( $repository, $health ) )->register();
 		( new SnapshotAdminPage( $snapshot_repository, new PluginSnapshotService(), $repository ) )->register();
-		( new GuardedUpdateAdminPage( $snapshot_repository, $guarded_update ) )->register();
+		( new GuardedUpdateAdminPage( $snapshot_repository, $guarded_update, $guarded_batch, $maintenance_window ) )->register();
 		( new RecoveryAdminPage( $snapshot_repository, $recovery_service ) )->register();
 		( new Cleanup() )->register();
 		( new SnapshotCleanup( $snapshot_repository ) )->register();
