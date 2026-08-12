@@ -12,35 +12,57 @@ use RevertShield\Snapshot\SnapshotCleanup;
 use RevertShield\Support\Cleanup;
 
 /**
- * Handles plugin activation.
+ * Handles plugin activation and per-site provisioning.
  */
 final class Activator {
 	/**
-	 * Activate plugin.
+	 * Activate plugin for the current site context.
 	 *
 	 * @return void
 	 */
 	public static function activate() {
 		Migrator::migrate();
-
-		if ( false === get_option( 'revertshield_settings', false ) ) {
-			add_option(
-				'revertshield_settings',
-				array(
-					'retention_days'             => 90,
-					'snapshot_retention_days'    => 7,
-					'log_option_names'           => 1,
-					'delete_on_uninstall'        => 0,
-					'maintenance_window_enabled' => 0,
-					'maintenance_window_start'   => '02:00',
-					'maintenance_window_end'     => '05:00',
-				),
-				'',
-				false
-			);
-		}
-
+		self::ensure_settings();
 		Cleanup::schedule();
 		SnapshotCleanup::schedule();
+	}
+
+	/**
+	 * Ensure an already active site has current schema and safe defaults.
+	 *
+	 * This supports Multisite network activation without iterating an unbounded
+	 * network during activation. Each existing site is repaired on first load.
+	 *
+	 * @return void
+	 */
+	public static function ensure_current_site() {
+		Migrator::maybe_upgrade();
+		self::ensure_settings();
+	}
+
+	/**
+	 * Ensure the current site has the default local settings record.
+	 *
+	 * @return void
+	 */
+	private static function ensure_settings() {
+		if ( false !== get_option( 'revertshield_settings', false ) ) {
+			return;
+		}
+
+		add_option(
+			'revertshield_settings',
+			array(
+				'retention_days'             => 90,
+				'snapshot_retention_days'    => 7,
+				'log_option_names'           => 1,
+				'delete_on_uninstall'        => 0,
+				'maintenance_window_enabled' => 0,
+				'maintenance_window_start'   => '02:00',
+				'maintenance_window_end'     => '05:00',
+			),
+			'',
+			false
+		);
 	}
 }
