@@ -74,9 +74,19 @@
 - Runtime regression coverage for maintenance-window enforcement, batch pause behavior, multi-probe health persistence, scoped notice management, and recovery recommendations.
 - External notification delivery adapters remain deferred; 0.6.0 adds no telemetry, remote account requirement, or external notification service.
 
-## Phase 5 - Ecosystem adapters
+## Phase 5A - WooCommerce health adapter - complete in 0.7.0
 
-- WooCommerce health probes.
+- Optional ecosystem health-probe adapter contract with no hard dependency on WooCommerce.
+- Runtime detection of active WooCommerce without loading or activating it from RevertShield.
+- Read-only public WooCommerce Store API product-collection probe with a bounded `per_page=1` request.
+- Automatic inclusion in manual, post-guarded-update, and post-recovery health decisions through the shared health suite.
+- Non-WooCommerce sites retain the existing required homepage and WordPress REST probes.
+- No authenticated WooCommerce REST API credentials, order/customer/payment access, cart mutation, checkout mutation, or telemetry.
+- Deterministic regression coverage for baseline, WooCommerce-active, and WooCommerce-failure behavior.
+- Real current WooCommerce install/activation and Store API integration coverage on the latest supported WordPress/PHP runtime boundary.
+
+## Phase 5B - Remaining ecosystem adapters
+
 - Multisite-aware storage and operations.
 - WP-CLI commands.
 - REST endpoints with explicit permission callbacks.
