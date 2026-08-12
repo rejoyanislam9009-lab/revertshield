@@ -25,8 +25,9 @@ $assert( true === $adapter->is_applicable(), 'Real WooCommerce activation was no
 
 $targets = $adapter->probe_targets();
 $assert( isset( $targets['woocommerce_store_api_http'] ), 'Real WooCommerce adapter did not expose the Store API probe target.' );
-$assert( false !== strpos( $targets['woocommerce_store_api_http'], '/wc/store/v1/products' ), 'WooCommerce Store API probe target does not use the public product collection endpoint.' );
-$assert( false !== strpos( $targets['woocommerce_store_api_http'], 'per_page=1' ), 'WooCommerce Store API probe target is not bounded to one product.' );
+$decoded_target = rawurldecode( $targets['woocommerce_store_api_http'] );
+$assert( false !== strpos( $decoded_target, 'wc/store/v1/products' ), 'WooCommerce Store API probe target does not use the public product collection endpoint.' );
+$assert( false !== strpos( $decoded_target, 'per_page=1' ), 'WooCommerce Store API probe target is not bounded to one product.' );
 
 if ( ! did_action( 'rest_api_init' ) ) {
 	do_action( 'rest_api_init', rest_get_server() );
