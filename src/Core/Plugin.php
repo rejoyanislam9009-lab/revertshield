@@ -25,7 +25,7 @@ use RevertShield\Snapshot\PluginSnapshotService;
 use RevertShield\Snapshot\SnapshotCleanup;
 use RevertShield\Snapshot\SnapshotRepository;
 use RevertShield\Support\Cleanup;
-use RevertShield\Update\GuardedPluginUpdateBatchService;
+use RevertShield\Update\GuardedUpdateBatchService;
 use RevertShield\Update\GuardedPluginUpdateService;
 use RevertShield\Update\SafeUpdateGate;
 
@@ -47,7 +47,7 @@ final class Plugin {
 		$safe_update_gate     = new SafeUpdateGate( $snapshot_repository );
 		$maintenance_window   = new MaintenanceWindow();
 		$guarded_update       = new GuardedPluginUpdateService( $safe_update_gate, null, $health, $repository, $maintenance_window );
-		$guarded_batch        = new GuardedPluginUpdateBatchService( $guarded_update, $repository );
+		$guarded_batch        = new GuardedUpdateBatchService( $guarded_update, $repository );
 		$recovery_eligibility = new RecoveryEligibility( $snapshot_repository );
 		$recovery_service     = new PluginRecoveryService( $recovery_eligibility, $snapshot_repository, null, null, null, $health, $repository );
 
