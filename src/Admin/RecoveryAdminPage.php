@@ -127,7 +127,12 @@ final class RecoveryAdminPage {
 			return;
 		}
 
-		$snapshots = $this->eligible_rows( $this->snapshots->recent( 100 ) );
+		$snapshots            = $this->eligible_rows( $this->snapshots->recent( 100 ) );
+		$recommended_snapshot = '';
+
+		if ( isset( $_GET['rs_recommend'], $_GET['rs_recovery_snapshot'] ) && '1' === sanitize_key( wp_unslash( $_GET['rs_recommend'] ) ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only recommendation after a nonce-protected guarded update.
+			$recommended_snapshot = sanitize_text_field( wp_unslash( $_GET['rs_recovery_snapshot'] ) ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+		}
 		?>
 		<div class="wrap revertshield-wrap">
 			<div class="revertshield-hero">
@@ -140,9 +145,16 @@ final class RecoveryAdminPage {
 
 			<?php $this->render_notice(); ?>
 
+			<?php if ( '' !== $recommended_snapshot ) : ?>
+				<div class="notice notice-info inline"><p>
+					<strong><?php echo esc_html__( 'Recovery review recommended.', 'revertshield' ); ?></strong>
+					<?php echo esc_html__( 'The guarded update health suite was unhealthy and the exact verified pre-update snapshot is highlighted below. Review it before deciding whether to restore; RevertShield will not start recovery automatically.', 'revertshield' ); ?>
+				</p></div>
+			<?php endif; ?>
+
 			<div class="notice notice-warning inline"><p>
 				<strong><?php echo esc_html__( 'Recovery replaces plugin files.', 'revertshield' ); ?></strong>
-				<?php echo esc_html__( 'RevertShield verifies the selected snapshot again, stages and verifies every file, preserves the current plugin files during the transaction, verifies the restored plugin exactly, and then runs a homepage health check. A failed health check is recorded and does not trigger another automatic restore.', 'revertshield' ); ?>
+				<?php echo esc_html__( 'RevertShield verifies the selected snapshot again, stages and verifies every file, preserves the current plugin files during the transaction, verifies the restored plugin exactly, and then runs the multi-probe site-health suite. A failed health result is recorded and does not trigger another automatic restore.', 'revertshield' ); ?>
 			</p></div>
 
 			<section class="revertshield-card revertshield-ledger">
@@ -169,9 +181,13 @@ final class RecoveryAdminPage {
 							</td></tr>
 						<?php else : ?>
 							<?php foreach ( $snapshots as $snapshot ) : ?>
-								<tr>
+								<?php $is_recommended = '' !== $recommended_snapshot && hash_equals( (string) $snapshot['snapshot_uuid'], $recommended_snapshot ); ?>
+								<tr<?php echo $is_recommended ? ' class="revertshield-recommended-row"' : ''; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Static class attribute. ?>>
 									<td><code><?php echo esc_html( $snapshot['component_name'] ); ?></code></td>
-									<td><code><?php echo esc_html( $snapshot['snapshot_uuid'] ); ?></code></td>
+									<td>
+										<code><?php echo esc_html( $snapshot['snapshot_uuid'] ); ?></code>
+										<?php if ( $is_recommended ) : ?><span class="revertshield-recommendation-badge"><?php echo esc_html__( 'Recommended review', 'revertshield' ); ?></span><?php endif; ?>
+									</td>
 									<td><?php echo esc_html( get_date_from_gmt( $snapshot['created_at'], 'Y-m-d H:i:s' ) ); ?></td>
 									<td><?php echo esc_html( get_date_from_gmt( $snapshot['expires_at'], 'Y-m-d H:i:s' ) ); ?></td>
 									<td>
@@ -272,14 +288,14 @@ final class RecoveryAdminPage {
 
 		if ( 'healthy' === $status ) {
 			?>
-			<div class="notice notice-success is-dismissible"><p><?php echo esc_html__( 'Plugin recovery completed, restored-file integrity passed, and the homepage health check passed.', 'revertshield' ); ?></p></div>
+			<div class="notice notice-success is-dismissible"><p><?php echo esc_html__( 'Plugin recovery completed, restored-file integrity passed, and the site-health suite passed.', 'revertshield' ); ?></p></div>
 			<?php
 			return;
 		}
 
 		if ( 'unhealthy' === $status ) {
 			?>
-			<div class="notice notice-warning is-dismissible"><p><?php echo esc_html__( 'Plugin recovery completed and restored-file integrity passed, but the homepage health check failed. RevertShield recorded the result and did not perform another automatic restore.', 'revertshield' ); ?></p></div>
+			<div class="notice notice-warning is-dismissible"><p><?php echo esc_html__( 'Plugin recovery completed and restored-file integrity passed, but the site-health suite failed. RevertShield recorded the result and did not perform another automatic restore.', 'revertshield' ); ?></p></div>
 			<?php
 			return;
 		}
