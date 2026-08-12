@@ -50,6 +50,12 @@ final class AdminNavigation {
 				'label'      => __( 'Updates', 'revertshield' ),
 				'capability' => 'update_plugins',
 			),
+			array(
+				'screen_id'  => 'tools_page_revertshield-recovery',
+				'page'       => 'revertshield-recovery',
+				'label'      => __( 'Recovery', 'revertshield' ),
+				'capability' => 'update_plugins',
+			),
 		);
 
 		$screen_ids = wp_list_pluck( $tabs, 'screen_id' );

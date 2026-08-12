@@ -214,7 +214,7 @@ final class SnapshotAdminPage {
 				</div>
 				<div class="revertshield-metric">
 					<span class="revertshield-metric-label"><?php echo esc_html__( 'Recovery', 'revertshield' ); ?></span>
-					<span class="revertshield-metric-value revertshield-metric-text"><?php echo esc_html__( 'Not enabled', 'revertshield' ); ?></span>
+					<span class="revertshield-metric-value revertshield-metric-text"><?php echo esc_html__( 'Manual restore', 'revertshield' ); ?></span>
 				</div>
 			</div>
 
