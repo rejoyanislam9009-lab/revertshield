@@ -11,6 +11,7 @@ use RevertShield\Admin\AdminNavigation;
 use RevertShield\Admin\AdminNoticeCenter;
 use RevertShield\Admin\AdminPage;
 use RevertShield\Admin\GuardedUpdateAdminPage;
+use RevertShield\Admin\MultisiteNotice;
 use RevertShield\Admin\RecoveryAdminPage;
 use RevertShield\Admin\Settings;
 use RevertShield\Admin\SnapshotAdminPage;
@@ -55,6 +56,7 @@ final class Plugin {
 		( new Settings() )->register();
 		( new AdminNavigation() )->register();
 		( new AdminNoticeCenter() )->register();
+		( new MultisiteNotice() )->register();
 		( new AdminPage( $repository, $health ) )->register();
 		( new SnapshotAdminPage( $snapshot_repository, new PluginSnapshotService(), $repository ) )->register();
 		( new GuardedUpdateAdminPage( $snapshot_repository, $guarded_update, $guarded_batch, $maintenance_window ) )->register();
