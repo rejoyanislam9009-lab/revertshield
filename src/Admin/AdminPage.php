@@ -9,6 +9,7 @@ namespace RevertShield\Admin;
 
 use RevertShield\Health\HealthChecker;
 use RevertShield\Ledger\ChangeRepository;
+use RevertShield\Policy\MaintenanceWindow;
 
 final class AdminPage {
 	/** @var ChangeRepository */
@@ -89,7 +90,7 @@ final class AdminPage {
 	}
 
 	/**
-	 * Run a manual health check.
+	 * Run a manual multi-probe health check.
 	 *
 	 * @return void
 	 */
@@ -99,7 +100,7 @@ final class AdminPage {
 		}
 
 		check_admin_referer( 'revertshield_health_check' );
-		$result = $this->health->run_homepage_check();
+		$result = $this->health->run_site_check();
 
 		$redirect = add_query_arg(
 			array(
@@ -128,8 +129,12 @@ final class AdminPage {
 		$health_count  = $this->health->count();
 		$latest        = $this->health->latest();
 		$settings      = get_option( 'revertshield_settings', array() );
+		$settings      = is_array( $settings ) ? $settings : array();
 		$retention     = isset( $settings['retention_days'] ) ? absint( $settings['retention_days'] ) : 90;
 		$health_status = $latest ? sanitize_key( $latest['status'] ) : 'idle';
+		$window        = ( new MaintenanceWindow() )->status();
+		$window_start  = isset( $settings['maintenance_window_start'] ) ? sanitize_text_field( $settings['maintenance_window_start'] ) : '02:00';
+		$window_end    = isset( $settings['maintenance_window_end'] ) ? sanitize_text_field( $settings['maintenance_window_end'] ) : '05:00';
 		?>
 		<div class="wrap revertshield-wrap">
 			<div class="revertshield-hero">
@@ -143,7 +148,7 @@ final class AdminPage {
 			<?php if ( isset( $_GET['rs_run'] ) ) : // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only status flag after nonce-protected action. ?>
 				<?php $run_status = sanitize_key( wp_unslash( $_GET['rs_run'] ) ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended ?>
 				<div class="notice <?php echo 'pass' === $run_status ? 'notice-success' : 'notice-error'; ?> is-dismissible"><p>
-					<?php echo esc_html( 'pass' === $run_status ? __( 'Homepage health check passed.', 'revertshield' ) : __( 'Homepage health check failed. Review the latest result below.', 'revertshield' ) ); ?>
+					<?php echo esc_html( 'pass' === $run_status ? __( 'Site health suite passed.', 'revertshield' ) : __( 'Site health suite failed. Review the latest result below.', 'revertshield' ) ); ?>
 				</p></div>
 			<?php endif; ?>
 
@@ -174,8 +179,8 @@ final class AdminPage {
 							<?php
 							echo esc_html(
 								sprintf(
-									/* translators: 1: HTTP status code, 2: response time in milliseconds. */
-									__( 'HTTP %1$d in %2$d ms', 'revertshield' ),
+									/* translators: 1: homepage HTTP status code, 2: suite response time in milliseconds. */
+									__( 'Homepage HTTP %1$d · suite %2$d ms', 'revertshield' ),
 									absint( $latest['http_code'] ),
 									absint( $latest['duration_ms'] )
 								)
@@ -193,12 +198,13 @@ final class AdminPage {
 					<form action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" method="post">
 						<input type="hidden" name="action" value="revertshield_health_check">
 						<?php wp_nonce_field( 'revertshield_health_check' ); ?>
-						<?php submit_button( __( 'Run Homepage Check', 'revertshield' ), 'secondary', 'submit', false ); ?>
+						<?php submit_button( __( 'Run Site Health Check', 'revertshield' ), 'secondary', 'submit', false ); ?>
 					</form>
+					<p class="description"><?php echo esc_html__( 'Checks both the public homepage and the WordPress REST API index.', 'revertshield' ); ?></p>
 				</section>
 
 				<section class="revertshield-card">
-					<h2><?php echo esc_html__( 'Data controls', 'revertshield' ); ?></h2>
+					<h2><?php echo esc_html__( 'Data & policy controls', 'revertshield' ); ?></h2>
 					<form action="options.php" method="post">
 						<?php settings_fields( 'revertshield_settings_group' ); ?>
 						<p class="revertshield-settings-row">
@@ -207,6 +213,26 @@ final class AdminPage {
 						</p>
 						<p class="revertshield-settings-row"><label><input name="revertshield_settings[log_option_names]" type="checkbox" value="1" <?php checked( ! empty( $settings['log_option_names'] ) ); ?>> <?php echo esc_html__( 'Record changes to selected critical option names. Option values are never stored by this observer.', 'revertshield' ); ?></label></p>
 						<p class="revertshield-settings-row"><label><input name="revertshield_settings[delete_on_uninstall]" type="checkbox" value="1" <?php checked( ! empty( $settings['delete_on_uninstall'] ) ); ?>> <?php echo esc_html__( 'Delete RevertShield tables and settings when the plugin is uninstalled.', 'revertshield' ); ?></label></p>
+						<hr>
+						<p class="revertshield-settings-row"><label><input name="revertshield_settings[maintenance_window_enabled]" type="checkbox" value="1" <?php checked( ! empty( $settings['maintenance_window_enabled'] ) ); ?>> <strong><?php echo esc_html__( 'Restrict guarded plugin updates to a maintenance window', 'revertshield' ); ?></strong></label></p>
+						<p class="revertshield-settings-row revertshield-time-row">
+							<label for="revertshield-window-start"><?php echo esc_html__( 'Start', 'revertshield' ); ?></label>
+							<input id="revertshield-window-start" name="revertshield_settings[maintenance_window_start]" type="time" value="<?php echo esc_attr( $window_start ); ?>">
+							<label for="revertshield-window-end"><?php echo esc_html__( 'End', 'revertshield' ); ?></label>
+							<input id="revertshield-window-end" name="revertshield_settings[maintenance_window_end]" type="time" value="<?php echo esc_attr( $window_end ); ?>">
+						</p>
+						<p class="description">
+							<?php
+							echo esc_html(
+								sprintf(
+									/* translators: 1: policy state, 2: WordPress timezone. */
+									__( 'Current policy: %1$s. Times use WordPress timezone %2$s.', 'revertshield' ),
+									! empty( $window['enabled'] ) ? ( ! empty( $window['allowed'] ) ? __( 'window open', 'revertshield' ) : __( 'window closed', 'revertshield' ) ) : __( 'disabled', 'revertshield' ),
+									wp_timezone_string()
+								)
+							);
+							?>
+						</p>
 						<?php submit_button( __( 'Save Settings', 'revertshield' ) ); ?>
 					</form>
 				</section>
