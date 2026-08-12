@@ -101,7 +101,14 @@ final class RecoveryAdminPage {
 			? sanitize_text_field( wp_unslash( $_POST['snapshot_uuid'] ) )
 			: '';
 
+		$locked = $this->acquire_lock();
+		if ( is_wp_error( $locked ) ) {
+			$this->redirect( 'failed', $locked->get_error_code() );
+		}
+
 		$result = $this->service->execute( $plugin_file, $snapshot_uuid );
+		$this->release_lock();
+
 		if ( is_wp_error( $result ) ) {
 			$this->redirect( 'failed', $result->get_error_code() );
 		}
@@ -215,6 +222,39 @@ final class RecoveryAdminPage {
 		}
 
 		return $eligible;
+	}
+
+	/**
+	 * Acquire a short-lived global recovery lock.
+	 *
+	 * @return true|\WP_Error True when locked or an error if another recovery is active.
+	 */
+	private function acquire_lock() {
+		$option   = 'revertshield_recovery_lock';
+		$now      = time();
+		$existing = absint( get_option( $option, 0 ) );
+
+		if ( $existing > 0 && $existing < ( $now - 900 ) ) {
+			delete_option( $option );
+		}
+
+		if ( ! add_option( $option, $now, '', false ) ) {
+			return new \WP_Error(
+				'revertshield_recovery_already_running',
+				__( 'Another RevertShield recovery operation is already running.', 'revertshield' )
+			);
+		}
+
+		return true;
+	}
+
+	/**
+	 * Release the global recovery lock.
+	 *
+	 * @return void
+	 */
+	private function release_lock() {
+		delete_option( 'revertshield_recovery_lock' );
 	}
 
 	/**
