@@ -29,6 +29,18 @@ final class SnapshotPreflight {
 		}
 
 		$base_dir = wp_normalize_path( $uploads['basedir'] );
+
+		// A newly initialized Multisite site may have a valid WordPress uploads
+		// path before its physical directory has been created by the first upload.
+		// Only create the exact WordPress-resolved base directory, then revalidate
+		// it before any RevertShield-managed snapshot path is derived below it.
+		if ( ! is_dir( $base_dir ) && ! wp_mkdir_p( $base_dir ) ) {
+			return new \WP_Error(
+				'revertshield_uploads_create_failed',
+				__( 'The WordPress uploads directory could not be created.', 'revertshield' )
+			);
+		}
+
 		if ( ! is_dir( $base_dir ) || ! wp_is_writable( $base_dir ) ) {
 			return new \WP_Error(
 				'revertshield_uploads_not_writable',
