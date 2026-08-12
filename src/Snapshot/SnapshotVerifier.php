@@ -7,6 +7,8 @@
 
 namespace RevertShield\Snapshot;
 
+use RevertShield\Support\SiteContext;
+
 /**
  * Independently verifies snapshot metadata, manifest, and stored objects.
  */
@@ -17,15 +19,20 @@ final class SnapshotVerifier {
 	/** @var StorageLocator */
 	private $locator;
 
+	/** @var SiteContext */
+	private $site_context;
+
 	/**
 	 * Constructor.
 	 *
-	 * @param SnapshotRepository|null $repository Optional metadata repository.
-	 * @param StorageLocator|null     $locator    Optional storage locator.
+	 * @param SnapshotRepository|null $repository   Optional metadata repository.
+	 * @param StorageLocator|null     $locator      Optional storage locator.
+	 * @param SiteContext|null        $site_context Optional site context.
 	 */
-	public function __construct( SnapshotRepository $repository = null, StorageLocator $locator = null ) {
-		$this->repository = $repository ? $repository : new SnapshotRepository();
-		$this->locator    = $locator ? $locator : new StorageLocator();
+	public function __construct( SnapshotRepository $repository = null, StorageLocator $locator = null, SiteContext $site_context = null ) {
+		$this->repository   = $repository ? $repository : new SnapshotRepository();
+		$this->site_context = $site_context ? $site_context : new SiteContext();
+		$this->locator      = $locator ? $locator : new StorageLocator( $this->site_context );
 	}
 
 	/**
@@ -98,6 +105,11 @@ final class SnapshotVerifier {
 				'revertshield_snapshot_manifest_invalid',
 				__( 'The snapshot manifest format is invalid.', 'revertshield' )
 			);
+		}
+
+		$scope = $this->site_context->validate_snapshot_manifest_scope( $manifest );
+		if ( is_wp_error( $scope ) ) {
+			return $scope;
 		}
 
 		$objects_dir = trailingslashit( $location['absolute'] ) . 'objects';
