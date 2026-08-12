@@ -66,37 +66,26 @@ final class HealthChecker {
 		);
 
 		return array(
-			'check_type'   => 'site_suite',
-			'status'       => $status,
-			'http_code'    => absint( $homepage['http_code'] ),
-			'duration_ms'  => max( 0, $duration ),
-			'message'      => $message,
-			'probes'       => $probes,
+			'check_type'    => 'site_suite',
+			'status'        => $status,
+			'http_code'     => absint( $homepage['http_code'] ),
+			'duration_ms'   => max( 0, $duration ),
+			'message'       => $message,
+			'probes'        => $probes,
 			'failed_probes' => $failed,
 		);
 	}
 
 	/**
-	 * Check the public home page through the WordPress HTTP API.
+	 * Compatibility wrapper for pre-0.6 callers.
 	 *
-	 * Kept for backward compatibility with callers that explicitly request the
-	 * original single-probe behavior.
+	 * Existing callers keep the same bounded top-level result fields while the
+	 * actual decision now uses the complete site-health suite.
 	 *
 	 * @return array
 	 */
 	public function run_homepage_check() {
-		$result = $this->run_http_probe( 'homepage_http', home_url( '/' ) );
-
-		$this->persist(
-			'homepage_http',
-			home_url( '/' ),
-			$result['status'],
-			$result['http_code'],
-			$result['duration_ms'],
-			$result['message']
-		);
-
-		return $result;
+		return $this->run_site_check();
 	}
 
 	/**
