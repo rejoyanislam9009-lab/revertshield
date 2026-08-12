@@ -10,6 +10,7 @@ namespace RevertShield\Update;
 use RevertShield\Snapshot\SnapshotRepository;
 use RevertShield\Snapshot\SnapshotState;
 use RevertShield\Snapshot\SnapshotVerifier;
+use RevertShield\Support\SiteContext;
 
 /**
  * Validates that a snapshot is eligible to guard a future plugin update.
@@ -21,15 +22,20 @@ final class SafeUpdateGate {
 	/** @var SnapshotVerifier */
 	private $verifier;
 
+	/** @var SiteContext */
+	private $site_context;
+
 	/**
 	 * Constructor.
 	 *
-	 * @param SnapshotRepository|null $repository Optional snapshot repository.
-	 * @param SnapshotVerifier|null   $verifier   Optional integrity verifier.
+	 * @param SnapshotRepository|null $repository   Optional snapshot repository.
+	 * @param SnapshotVerifier|null   $verifier     Optional integrity verifier.
+	 * @param SiteContext|null        $site_context Optional site context.
 	 */
-	public function __construct( SnapshotRepository $repository = null, SnapshotVerifier $verifier = null ) {
-		$this->repository = $repository ? $repository : new SnapshotRepository();
-		$this->verifier   = $verifier ? $verifier : new SnapshotVerifier( $this->repository );
+	public function __construct( SnapshotRepository $repository = null, SnapshotVerifier $verifier = null, SiteContext $site_context = null ) {
+		$this->repository   = $repository ? $repository : new SnapshotRepository();
+		$this->site_context = $site_context ? $site_context : new SiteContext();
+		$this->verifier     = $verifier ? $verifier : new SnapshotVerifier( $this->repository, null, $this->site_context );
 	}
 
 	/**
@@ -44,6 +50,11 @@ final class SafeUpdateGate {
 	 * @return array|\WP_Error Verified snapshot summary or an error.
 	 */
 	public function validate( $snapshot_uuid, $plugin_file ) {
+		$mutation = $this->site_context->guard_plugin_file_mutation();
+		if ( is_wp_error( $mutation ) ) {
+			return $mutation;
+		}
+
 		$snapshot = $this->repository->find( $snapshot_uuid );
 		if ( ! $snapshot ) {
 			return new \WP_Error(
