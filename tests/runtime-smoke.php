@@ -21,7 +21,10 @@ $assert( defined( 'REVERTSHIELD_VERSION' ), 'RevertShield version constant is mi
 $assert( class_exists( 'RevertShield\\Core\\Plugin' ), 'Main plugin coordinator did not autoload.' );
 $assert( class_exists( 'RevertShield\\Snapshot\\PluginSnapshotService' ), 'Snapshot service did not autoload.' );
 $assert( class_exists( 'RevertShield\\Update\\GuardedPluginUpdateService' ), 'Guarded update service did not autoload.' );
+$assert( class_exists( 'RevertShield\\Update\\GuardedUpdateBatchService' ), 'Guarded batch service did not autoload.' );
 $assert( class_exists( 'RevertShield\\Recovery\\PluginRecoveryService' ), 'Recovery service did not autoload.' );
+$assert( class_exists( 'RevertShield\\Policy\\MaintenanceWindow' ), 'Maintenance-window policy did not autoload.' );
+$assert( class_exists( 'RevertShield\\Admin\\AdminNoticeCenter' ), 'Admin notice center did not autoload.' );
 $assert( class_exists( 'RevertShield\\Admin\\RecoveryAdminPage' ), 'Recovery admin page did not autoload.' );
 
 $assert( '2' === (string) get_option( 'revertshield_schema_version', '' ), 'Database schema migration did not complete.' );
@@ -32,6 +35,9 @@ $assert( isset( $settings['retention_days'] ) && 90 === (int) $settings['retenti
 $assert( isset( $settings['snapshot_retention_days'] ) && 7 === (int) $settings['snapshot_retention_days'], 'Default snapshot retention is incorrect.' );
 $assert( isset( $settings['log_option_names'] ) && 1 === (int) $settings['log_option_names'], 'Default option-name logging setting is incorrect.' );
 $assert( isset( $settings['delete_on_uninstall'] ) && 0 === (int) $settings['delete_on_uninstall'], 'Delete-on-uninstall must default to disabled.' );
+$assert( isset( $settings['maintenance_window_enabled'] ) && 0 === (int) $settings['maintenance_window_enabled'], 'Maintenance-window policy must default to disabled.' );
+$assert( isset( $settings['maintenance_window_start'] ) && '02:00' === $settings['maintenance_window_start'], 'Default maintenance-window start is incorrect.' );
+$assert( isset( $settings['maintenance_window_end'] ) && '05:00' === $settings['maintenance_window_end'], 'Default maintenance-window end is incorrect.' );
 
 global $wpdb;
 
@@ -51,6 +57,7 @@ $assert( false !== wp_next_scheduled( 'revertshield_daily_snapshot_cleanup' ), '
 
 $assert( false !== has_action( 'admin_post_revertshield_create_snapshot' ), 'Snapshot admin action is not registered.' );
 $assert( false !== has_action( 'admin_post_revertshield_guarded_plugin_update' ), 'Guarded update admin action is not registered.' );
+$assert( false !== has_action( 'admin_post_revertshield_guarded_plugin_batch' ), 'Guarded batch admin action is not registered.' );
 $assert( false !== has_action( 'admin_post_revertshield_plugin_recovery' ), 'Recovery admin action is not registered.' );
 
 WP_CLI::success( 'RevertShield runtime smoke checks passed.' );

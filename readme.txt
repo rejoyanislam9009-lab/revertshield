@@ -3,7 +3,7 @@ Tags: maintenance, updates, debugging, health check, activity log
 Requires at least: 6.5
 Tested up to: 7.0
 Requires PHP: 7.4
-Stable tag: 0.5.0
+Stable tag: 0.6.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -19,7 +19,7 @@ The current release provides a local-first operational safety layer:
 * Records plugin, theme, and core upgrader events.
 * Records theme switches.
 * Can record the names of selected critical WordPress options without storing their old or new values.
-* Runs on-demand homepage HTTP health checks using the WordPress HTTP API.
+* Runs an on-demand local site-health suite covering the public homepage and WordPress REST API index.
 * Stores change, health, and snapshot history in dedicated, indexed database tables.
 * Lets authorized administrators create integrity-verified snapshots of installed plugin files.
 * Stores snapshot contents as extensionless, SHA-256-addressed objects under the WordPress uploads directory.
@@ -29,32 +29,37 @@ The current release provides a local-first operational safety layer:
 * Requires a matching, unexpired, independently verified ready snapshot before a guarded plugin update can run.
 * Revalidates the WordPress update offer immediately before update execution.
 * Executes guarded plugin updates through WordPress core Plugin_Upgrader APIs rather than custom package-download logic.
-* Runs a homepage health check after a successful guarded update and records healthy or unhealthy outcomes in the local ledger.
+* Runs the multi-probe site-health suite after successful guarded updates and records healthy or unhealthy outcomes locally.
+* Supports an optional administrator-configured maintenance window for guarded update execution. The policy is disabled by default.
+* Supports bounded pause-on-failure guarded update batches. Updates run sequentially and the batch stops on the first safe failure or unhealthy health result.
+* Can recommend the exact independently reverified pre-update snapshot for manual review after an unhealthy guarded update, without starting recovery automatically.
 * Provides WordPress-native Dashboard, Snapshots, Updates, and Recovery navigation across RevertShield admin screens.
+* Provides a RevertShield-scoped notification center on RevertShield admin screens so transient success and informational notices do not remain piled around the page header.
+* Auto-clears transient success and informational notices after a short delay while keeping warning and error notices visible until dismissed.
 * Provides explicit administrator-controlled manual plugin recovery from a matching, unexpired, independently verified ready snapshot.
 * Stages and verifies every recovery file before replacing the installed plugin files.
 * Preserves the pre-recovery plugin files during the transaction until the restored plugin passes exact inventory, SHA-256, and size verification.
-* Runs a homepage health check after a successful manual recovery and records healthy or unhealthy outcomes locally.
+* Runs the multi-probe site-health suite after successful manual recovery and records healthy or unhealthy outcomes locally.
 * Prevents concurrent manual recovery operations with a short-lived recovery lock.
-* Includes automated real-WordPress runtime regression coverage for bootstrap, snapshot integrity, guarded-update safety gates, scoped recovery, health persistence, tamper detection, and admin rendering.
+* Includes automated real-WordPress runtime regression coverage for bootstrap, snapshot integrity, guarded-update safety gates, policy enforcement, scoped recovery, health persistence, tamper detection, and admin rendering.
 * Sends no telemetry and requires no external account.
 
-RevertShield 0.5.0 keeps supported recovery explicit, administrator-controlled, component-scoped, and verification-gated. It does not perform generic database rollback, does not restore RevertShield itself, and does not automatically roll back a completed update or recovery when a later homepage health check is unhealthy.
+RevertShield 0.6.0 keeps supported recovery explicit, administrator-controlled, component-scoped, and verification-gated. It does not perform generic database rollback, does not restore RevertShield itself, and does not automatically roll back or restore after an unhealthy health result.
 
 == Installation ==
 
 1. Upload the `revertshield` folder to `/wp-content/plugins/`, or install the release ZIP from Plugins > Add Plugin > Upload Plugin.
 2. Activate RevertShield.
-3. Open Tools > RevertShield for health checks and the activity ledger.
+3. Open Tools > RevertShield for health checks, maintenance-window settings, and the activity ledger.
 4. Open Tools > RevertShield Snapshots to create and review verified plugin snapshots.
-5. Open Tools > RevertShield Updates to run an eligible guarded plugin update when WordPress reports an available update.
+5. Open Tools > RevertShield Updates to run an eligible guarded plugin update or pause-on-failure guarded batch when WordPress reports available updates.
 6. Open Tools > RevertShield Recovery to manually restore an eligible plugin snapshot after reviewing the confirmation warning.
 
 == Frequently Asked Questions ==
 
 = Does RevertShield send site data to an external service? =
 
-No. The current release stores its ledger, health-check results, snapshot metadata, and recovery records on the site's own WordPress installation and includes no telemetry.
+No. The current release stores its ledger, health-check results, snapshot metadata, policy settings, and recovery records on the site's own WordPress installation and includes no telemetry.
 
 = Does RevertShield store WordPress option values? =
 
@@ -64,23 +69,51 @@ The built-in critical-option observer stores option names only. It does not stor
 
 Snapshot objects are stored below the site's WordPress uploads directory in a RevertShield-managed path. Original executable plugin filenames are not copied into uploads; file bytes are stored as extensionless SHA-256-addressed objects with integrity manifests and verification checks.
 
+= What does the site-health suite check? =
+
+RevertShield checks the site's public homepage and the WordPress REST API index through the WordPress HTTP API. Both probes must pass for the aggregate site-health result to pass.
+
 = How does a guarded plugin update work? =
 
-RevertShield only shows plugin updates currently reported by WordPress. Before an update can run, an authorized administrator must select a matching ready snapshot. RevertShield independently verifies the snapshot again, confirms that the update offer still exists, and then delegates the update to WordPress core's plugin upgrader. Afterward, RevertShield runs a homepage health check and records the result locally.
+RevertShield only shows plugin updates currently reported by WordPress. Before an update can run, an authorized administrator must select a matching ready snapshot. RevertShield independently verifies the snapshot again, checks the optional maintenance-window policy, confirms that the update offer still exists, and then delegates the update to WordPress core's plugin upgrader. Afterward, RevertShield runs the site-health suite and records the result locally.
+
+= How do guarded update batches work? =
+
+An authorized administrator can select up to 20 eligible guarded updates. RevertShield runs them one at a time. If an update fails safely or its post-update health result is unhealthy, the batch pauses immediately and later selected updates are not started.
+
+= Does a recovery recommendation restore anything automatically? =
+
+No. After an unhealthy guarded update, RevertShield may recommend the exact verified pre-update snapshot for review. The Recovery screen still requires an explicit administrator action and confirmation before any files are restored.
+
+= Why do notices disappear on RevertShield screens? =
+
+Transient success and informational notices on RevertShield screens are collected into a scoped notice area and automatically cleared after a short delay. Warning and error notices remain visible until they are explicitly dismissed. RevertShield does not change notice behavior on unrelated WordPress admin screens.
 
 = How does manual plugin recovery work? =
 
-An authorized administrator explicitly selects an eligible ready snapshot and confirms the recovery action. RevertShield verifies the snapshot again, stages and verifies its files, preserves the current plugin files during the transaction, replaces only that plugin's files, verifies the restored inventory exactly, and then runs a homepage health check. RevertShield itself is excluded from manual self-recovery in this release.
+An authorized administrator explicitly selects an eligible ready snapshot and confirms the recovery action. RevertShield verifies the snapshot again, stages and verifies its files, preserves the current plugin files during the transaction, replaces only that plugin's files, verifies the restored inventory exactly, and then runs the multi-probe site-health suite. RevertShield itself is excluded from manual self-recovery in this release.
 
 = Does RevertShield automatically roll back an unhealthy update or recovery? =
 
-No. Version 0.5.0 provides explicit manual plugin recovery, not automatic rollback. If the post-update or post-recovery homepage health check is unhealthy, RevertShield records the result and stops. It does not perform a generic database rollback or automatically start another restore.
+No. Version 0.6.0 provides explicit manual plugin recovery, not automatic rollback. If a post-update or post-recovery health result is unhealthy, RevertShield records the result and stops or pauses the current batch. It does not perform a generic database rollback or automatically start another restore.
 
 = Does uninstall remove RevertShield data? =
 
 Not by default. Enable the delete-on-uninstall setting before uninstalling if you want RevertShield's local tables, settings, and managed snapshot storage removed.
 
 == Changelog ==
+
+= 0.6.0 =
+* Added a RevertShield-scoped admin notification center on RevertShield screens.
+* Added automatic clearing and current-session repeat suppression for transient success and informational notices while preserving warning and error visibility.
+* Added automatic cleanup of RevertShield one-time action status query arguments after rendering.
+* Expanded local health validation into a multi-probe site-health suite covering the public homepage and WordPress REST API index.
+* Added an optional administrator-configured guarded-update maintenance window, disabled by default and enforced at the execution-service boundary.
+* Added bounded pause-on-failure guarded update batches with sequential execution and immediate stop on the first safe failure or unhealthy result.
+* Added explicit recovery recommendations after unhealthy guarded updates when the exact pre-update snapshot still passes independent verification.
+* Added Recovery-screen highlighting for recommended snapshots without bypassing the existing manual confirmation requirement.
+* Expanded real WordPress runtime regression coverage for notification management, maintenance-window enforcement, guarded batches, multi-probe health, and recovery recommendations.
+* Kept generic database rollback, automatic rollback, RevertShield self-recovery, arbitrary package URL execution, and telemetry disabled.
 
 = 0.5.0 =
 * Added real WordPress install-and-activate runtime smoke tests to the release quality gates.

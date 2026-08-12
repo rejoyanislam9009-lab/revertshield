@@ -64,13 +64,15 @@
 - Snapshot-object tamper detection proving verification, update eligibility, and recovery eligibility fail closed.
 - Dashboard, Snapshots, Updates, Recovery, and native navigation render smoke coverage.
 
-## Phase 4 - Policy engine
+## Phase 4 - Core policy engine - complete in 0.6.0
 
-- Multiple health probes.
-- Maintenance windows.
-- Pause-on-failure update batches.
-- Notification adapters.
-- Explicit policy for when a failed health result may recommend, but not silently trigger, a recovery action.
+- Multi-probe local site-health suite covering the public homepage and WordPress REST API index.
+- Optional administrator-configured maintenance windows for guarded update execution, disabled by default.
+- Bounded pause-on-failure guarded update batches with sequential execution.
+- RevertShield-scoped local admin notice management with transient success/info auto-clear and persistent warning/error visibility.
+- Explicit policy allowing an unhealthy guarded update to recommend the exact independently reverified pre-update snapshot without silently triggering recovery.
+- Runtime regression coverage for maintenance-window enforcement, batch pause behavior, multi-probe health persistence, scoped notice management, and recovery recommendations.
+- External notification delivery adapters remain deferred; 0.6.0 adds no telemetry, remote account requirement, or external notification service.
 
 ## Phase 5 - Ecosystem adapters
 
@@ -78,3 +80,4 @@
 - Multisite-aware storage and operations.
 - WP-CLI commands.
 - REST endpoints with explicit permission callbacks.
+- Optional external notification adapters only if they can preserve RevertShield's local-first privacy model and explicit administrator control.

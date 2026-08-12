@@ -33,10 +33,13 @@ final class Settings {
 				'type'              => 'array',
 				'sanitize_callback' => array( $this, 'sanitize' ),
 				'default'           => array(
-					'retention_days'          => 90,
-					'snapshot_retention_days' => 7,
-					'log_option_names'        => 1,
-					'delete_on_uninstall'     => 0,
+					'retention_days'             => 90,
+					'snapshot_retention_days'    => 7,
+					'log_option_names'           => 1,
+					'delete_on_uninstall'        => 0,
+					'maintenance_window_enabled' => 0,
+					'maintenance_window_start'   => '02:00',
+					'maintenance_window_end'     => '05:00',
 				),
 			)
 		);
@@ -45,8 +48,8 @@ final class Settings {
 	/**
 	 * Sanitize plugin settings.
 	 *
-	 * Snapshot retention is preserved when the legacy main settings form does
-	 * not include that newer field.
+	 * Snapshot retention is preserved when the main settings form does not
+	 * include that field.
 	 *
 	 * @param mixed $input Raw input.
 	 * @return array
@@ -59,12 +62,29 @@ final class Settings {
 		$snapshot = isset( $input['snapshot_retention_days'] )
 			? absint( $input['snapshot_retention_days'] )
 			: ( isset( $current['snapshot_retention_days'] ) ? absint( $current['snapshot_retention_days'] ) : 7 );
+		$start    = $this->sanitize_time( isset( $input['maintenance_window_start'] ) ? $input['maintenance_window_start'] : '02:00', '02:00' );
+		$end      = $this->sanitize_time( isset( $input['maintenance_window_end'] ) ? $input['maintenance_window_end'] : '05:00', '05:00' );
 
 		return array(
-			'retention_days'          => max( 1, min( 3650, $days ) ),
-			'snapshot_retention_days' => max( 1, min( 90, $snapshot ) ),
-			'log_option_names'        => empty( $input['log_option_names'] ) ? 0 : 1,
-			'delete_on_uninstall'     => empty( $input['delete_on_uninstall'] ) ? 0 : 1,
+			'retention_days'             => max( 1, min( 3650, $days ) ),
+			'snapshot_retention_days'    => max( 1, min( 90, $snapshot ) ),
+			'log_option_names'           => empty( $input['log_option_names'] ) ? 0 : 1,
+			'delete_on_uninstall'        => empty( $input['delete_on_uninstall'] ) ? 0 : 1,
+			'maintenance_window_enabled' => empty( $input['maintenance_window_enabled'] ) ? 0 : 1,
+			'maintenance_window_start'   => $start,
+			'maintenance_window_end'     => $end,
 		);
+	}
+
+	/**
+	 * Sanitize an HH:MM maintenance-window value.
+	 *
+	 * @param mixed  $value    Raw setting value.
+	 * @param string $fallback Fallback value.
+	 * @return string
+	 */
+	private function sanitize_time( $value, $fallback ) {
+		$value = sanitize_text_field( (string) $value );
+		return preg_match( '/^(?:[01][0-9]|2[0-3]):[0-5][0-9]$/', $value ) ? $value : $fallback;
 	}
 }
