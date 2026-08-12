@@ -27,10 +27,13 @@ final class Activator {
 			add_option(
 				'revertshield_settings',
 				array(
-					'retention_days'          => 90,
-					'snapshot_retention_days' => 7,
-					'log_option_names'        => 1,
-					'delete_on_uninstall'     => 0,
+					'retention_days'             => 90,
+					'snapshot_retention_days'    => 7,
+					'log_option_names'           => 1,
+					'delete_on_uninstall'        => 0,
+					'maintenance_window_enabled' => 0,
+					'maintenance_window_start'   => '02:00',
+					'maintenance_window_end'     => '05:00',
 				),
 				'',
 				false
