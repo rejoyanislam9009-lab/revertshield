@@ -7,6 +7,8 @@
 
 namespace RevertShield\Snapshot;
 
+use RevertShield\Support\SiteContext;
+
 /**
  * Builds a deterministic, checksummed inventory for an installed plugin.
  */
@@ -14,13 +16,18 @@ final class PluginInventory {
 	/** @var PluginSourceLocator */
 	private $locator;
 
+	/** @var SiteContext */
+	private $site_context;
+
 	/**
 	 * Constructor.
 	 *
-	 * @param PluginSourceLocator|null $locator Optional source locator.
+	 * @param PluginSourceLocator|null $locator      Optional source locator.
+	 * @param SiteContext|null         $site_context Optional site context.
 	 */
-	public function __construct( PluginSourceLocator $locator = null ) {
-		$this->locator = $locator ? $locator : new PluginSourceLocator();
+	public function __construct( PluginSourceLocator $locator = null, SiteContext $site_context = null ) {
+		$this->locator      = $locator ? $locator : new PluginSourceLocator();
+		$this->site_context = $site_context ? $site_context : new SiteContext();
 	}
 
 	/**
@@ -51,17 +58,19 @@ final class PluginInventory {
 		}
 
 		$plugin_data = $component['plugin_data'];
+		$metadata    = array(
+			'name'         => isset( $plugin_data['Name'] ) ? $plugin_data['Name'] : '',
+			'version'      => isset( $plugin_data['Version'] ) ? $plugin_data['Version'] : '',
+			'text_domain'  => isset( $plugin_data['TextDomain'] ) ? $plugin_data['TextDomain'] : '',
+			'requires_wp'  => isset( $plugin_data['RequiresWP'] ) ? $plugin_data['RequiresWP'] : '',
+			'requires_php' => isset( $plugin_data['RequiresPHP'] ) ? $plugin_data['RequiresPHP'] : '',
+		);
+		$metadata    = array_merge( $metadata, $this->site_context->snapshot_manifest_metadata() );
 
 		return new SnapshotManifest(
 			'plugin',
 			$component['plugin_file'],
-			array(
-				'name'         => isset( $plugin_data['Name'] ) ? $plugin_data['Name'] : '',
-				'version'      => isset( $plugin_data['Version'] ) ? $plugin_data['Version'] : '',
-				'text_domain'  => isset( $plugin_data['TextDomain'] ) ? $plugin_data['TextDomain'] : '',
-				'requires_wp'  => isset( $plugin_data['RequiresWP'] ) ? $plugin_data['RequiresWP'] : '',
-				'requires_php' => isset( $plugin_data['RequiresPHP'] ) ? $plugin_data['RequiresPHP'] : '',
-			),
+			$metadata,
 			$inventory['files'],
 			$inventory['total_size']
 		);
