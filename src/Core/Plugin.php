@@ -15,7 +15,6 @@ use RevertShield\Admin\MultisiteNotice;
 use RevertShield\Admin\RecoveryAdminPage;
 use RevertShield\Admin\Settings;
 use RevertShield\Admin\SnapshotAdminPage;
-use RevertShield\Database\Migrator;
 use RevertShield\Health\HealthChecker;
 use RevertShield\Ledger\ChangeObserver;
 use RevertShield\Ledger\ChangeRepository;
@@ -26,6 +25,7 @@ use RevertShield\Snapshot\PluginSnapshotService;
 use RevertShield\Snapshot\SnapshotCleanup;
 use RevertShield\Snapshot\SnapshotRepository;
 use RevertShield\Support\Cleanup;
+use RevertShield\Support\MultisiteProvisioner;
 use RevertShield\Update\GuardedUpdateBatchService;
 use RevertShield\Update\GuardedPluginUpdateService;
 use RevertShield\Update\SafeUpdateGate;
@@ -40,7 +40,7 @@ final class Plugin {
 	 * @return void
 	 */
 	public function boot() {
-		Migrator::maybe_upgrade();
+		Activator::ensure_current_site();
 
 		$repository           = new ChangeRepository();
 		$health               = new HealthChecker();
@@ -57,6 +57,7 @@ final class Plugin {
 		( new AdminNavigation() )->register();
 		( new AdminNoticeCenter() )->register();
 		( new MultisiteNotice() )->register();
+		( new MultisiteProvisioner() )->register();
 		( new AdminPage( $repository, $health ) )->register();
 		( new SnapshotAdminPage( $snapshot_repository, new PluginSnapshotService(), $repository ) )->register();
 		( new GuardedUpdateAdminPage( $snapshot_repository, $guarded_update, $guarded_batch, $maintenance_window ) )->register();
