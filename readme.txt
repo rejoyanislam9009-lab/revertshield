@@ -3,7 +3,7 @@ Tags: maintenance, updates, debugging, health check, activity log
 Requires at least: 6.5
 Tested up to: 7.0
 Requires PHP: 7.4
-Stable tag: 0.4.0
+Stable tag: 0.5.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -36,9 +36,10 @@ The current release provides a local-first operational safety layer:
 * Preserves the pre-recovery plugin files during the transaction until the restored plugin passes exact inventory, SHA-256, and size verification.
 * Runs a homepage health check after a successful manual recovery and records healthy or unhealthy outcomes locally.
 * Prevents concurrent manual recovery operations with a short-lived recovery lock.
+* Includes automated real-WordPress runtime regression coverage for bootstrap, snapshot integrity, guarded-update safety gates, scoped recovery, health persistence, tamper detection, and admin rendering.
 * Sends no telemetry and requires no external account.
 
-RevertShield 0.4.0 supports explicit manual recovery for eligible plugin-file snapshots. It does not perform generic database rollback, does not restore RevertShield itself, and does not automatically roll back a completed update or recovery when a later homepage health check is unhealthy.
+RevertShield 0.5.0 keeps supported recovery explicit, administrator-controlled, component-scoped, and verification-gated. It does not perform generic database rollback, does not restore RevertShield itself, and does not automatically roll back a completed update or recovery when a later homepage health check is unhealthy.
 
 == Installation ==
 
@@ -73,13 +74,25 @@ An authorized administrator explicitly selects an eligible ready snapshot and co
 
 = Does RevertShield automatically roll back an unhealthy update or recovery? =
 
-No. Version 0.4.0 provides explicit manual plugin recovery, not automatic rollback. If the post-update or post-recovery homepage health check is unhealthy, RevertShield records the result and stops. It does not perform a generic database rollback or automatically start another restore.
+No. Version 0.5.0 provides explicit manual plugin recovery, not automatic rollback. If the post-update or post-recovery homepage health check is unhealthy, RevertShield records the result and stops. It does not perform a generic database rollback or automatically start another restore.
 
 = Does uninstall remove RevertShield data? =
 
 Not by default. Enable the delete-on-uninstall setting before uninstalling if you want RevertShield's local tables, settings, and managed snapshot storage removed.
 
 == Changelog ==
+
+= 0.5.0 =
+* Added real WordPress install-and-activate runtime smoke tests to the release quality gates.
+* Added boundary runtime coverage on WordPress 6.5 with PHP 7.4 and the latest supported WordPress with PHP 8.4.
+* Added automated assertions for plugin bootstrap, schema migration, custom tables, safe defaults, cleanup schedules, and registered protected admin actions.
+* Added real fixture-plugin snapshot creation and independent integrity verification tests.
+* Added guarded-update failure-closed tests for target mismatch, preparing or expired snapshots, unavailable updates, and blocked RevertShield self-update.
+* Added recovery failure-closed tests for target mismatch, preparing or expired snapshots, blocked self-recovery, and concurrent recovery locking.
+* Added an automated real scoped restore that verifies restored plugin files, version, post-recovery health persistence, and recovery ledger events.
+* Added stored snapshot-object tamper detection tests proving corrupted objects cannot pass verification, guarded-update eligibility, or recovery eligibility.
+* Added Dashboard, Snapshots, Updates, Recovery, and WordPress-native navigation render smoke coverage.
+* Kept generic database rollback, automatic rollback, RevertShield self-recovery, arbitrary package URL execution, and telemetry disabled.
 
 = 0.4.0 =
 * Added shared WordPress-native Dashboard, Snapshots, Updates, and Recovery navigation.
