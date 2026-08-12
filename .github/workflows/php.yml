@@ -95,6 +95,14 @@ jobs:
         run: wp eval-file "$GITHUB_WORKSPACE/tests/runtime-smoke.php" --path=/tmp/revertshield-wp
       - name: Run snapshot, update, recovery regression assertions
         run: wp eval-file "$GITHUB_WORKSPACE/tests/runtime-regression.php" --path=/tmp/revertshield-wp
+      - name: Run WooCommerce health-adapter regression assertions
+        run: wp eval-file "$GITHUB_WORKSPACE/tests/runtime-woocommerce.php" --path=/tmp/revertshield-wp
+      - name: Install and activate real WooCommerce on latest boundary
+        if: matrix.wordpress == 'latest'
+        run: wp plugin install woocommerce --activate --path=/tmp/revertshield-wp
+      - name: Run live WooCommerce Store API integration assertions
+        if: matrix.wordpress == 'latest'
+        run: wp eval-file "$GITHUB_WORKSPACE/tests/runtime-woocommerce-live.php" --path=/tmp/revertshield-wp
 
   plugin-check:
     name: WordPress Plugin Check
