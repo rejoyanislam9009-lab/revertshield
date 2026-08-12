@@ -30,9 +30,10 @@ A WordPress update can fail for many reasons, but the first operational question
 - Transactional preservation of the current plugin files until exact post-restore inventory verification succeeds.
 - Post-recovery homepage health validation and local recovery ledger events.
 - Short-lived serialization lock to prevent concurrent manual recoveries.
+- Real WordPress runtime regression coverage for activation, snapshot integrity, guarded-update failure-closed behavior, scoped recovery, health persistence, tamper detection, and admin rendering.
 - Capability checks, nonces, input sanitization, output escaping, and redaction of obvious secret-like context keys.
 
-RevertShield 0.4.0 does **not** implement generic database rollback, automatic rollback after an unhealthy health result, or self-recovery of RevertShield. Supported recovery remains explicit, administrator-controlled, component-scoped, and verification-gated.
+RevertShield 0.5.0 does **not** implement generic database rollback, automatic rollback after an unhealthy health result, or self-recovery of RevertShield. Supported recovery remains explicit, administrator-controlled, component-scoped, and verification-gated.
 
 ## Architecture
 
@@ -50,7 +51,8 @@ src/
   Update/      Guarded update eligibility and execution
 assets/        Shipped admin assets
 docs/          Architecture, roadmap, release checklist
-.github/       CI and WordPress Plugin Check workflow
+tests/         Real WordPress runtime smoke and regression assertions
+.github/       CI, runtime matrix, and WordPress Plugin Check workflow
 ```
 
 Recovery is intentionally component-aware. RevertShield does not implement generic SQL reversal. A supported recovery operation must know which component changed, what was snapshotted, whether the snapshot is intact, whether it belongs to the target component, and whether the restored files exactly match the verified manifest.
@@ -67,8 +69,11 @@ Pull requests and release candidates are expected to pass:
 
 - PHP syntax checks across supported PHP versions.
 - WordPress Coding Standards via PHPCS.
+- Real WordPress runtime smoke and regression tests on the minimum supported boundary and the latest supported boundary.
 - Official WordPress Plugin Check against the built distribution directory.
 - Release allowlist packaging so development-only files are never shipped accidentally.
+
+The runtime matrix installs WordPress, activates the built RevertShield package, creates and verifies a fixture snapshot, proves guarded-update and recovery gates fail closed, performs a real scoped fixture recovery, checks health and ledger persistence, verifies tamper rejection, and smoke-renders the administrator screens.
 
 ## WordPress.org policy
 
