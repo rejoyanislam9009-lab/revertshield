@@ -16,6 +16,8 @@ A WordPress update can fail for many reasons, but the first operational question
 - Theme switch tracking.
 - Privacy-conscious tracking of selected critical option names without storing their values.
 - On-demand local site-health suite covering the public homepage and WordPress REST API index.
+- Optional ecosystem health-probe adapters without hard dependencies on the integrated plugin.
+- Automatic read-only WooCommerce Store API product-collection health coverage when WooCommerce is active, bounded to one product and requiring no API credentials.
 - Authorized, nonce-protected verified snapshots of installed plugin files.
 - Canonical plugin source resolution with path traversal and symlink protections.
 - SHA-256 file inventories and extensionless content-addressed snapshot storage.
@@ -34,10 +36,11 @@ A WordPress update can fail for many reasons, but the first operational question
 - Transactional preservation of the current plugin files until exact post-restore inventory verification succeeds.
 - Post-recovery multi-probe health validation and local recovery ledger events.
 - Short-lived serialization lock to prevent concurrent manual recoveries.
-- Real WordPress runtime regression coverage for activation, snapshot integrity, guarded-update failure-closed behavior, policy enforcement, guarded batches, scoped recovery, health persistence, tamper detection, notification management, and admin rendering.
+- Real WordPress runtime regression coverage for activation, snapshot integrity, guarded-update failure-closed behavior, policy enforcement, guarded batches, scoped recovery, health persistence, tamper detection, notification management, WooCommerce health integration, and admin rendering.
+- Real current WooCommerce install/activation and Store API integration coverage on the latest supported WordPress/PHP runtime boundary.
 - Capability checks, nonces, input sanitization, output escaping, and redaction of obvious secret-like context keys.
 
-RevertShield 0.6.0 does **not** implement generic database rollback, automatic rollback after an unhealthy health result, or self-recovery of RevertShield. Supported recovery remains explicit, administrator-controlled, component-scoped, and verification-gated.
+RevertShield 0.7.0 does **not** implement generic database rollback, automatic rollback after an unhealthy health result, or self-recovery of RevertShield. Supported recovery remains explicit, administrator-controlled, component-scoped, and verification-gated.
 
 ## Architecture
 
@@ -47,7 +50,7 @@ src/
   Admin/       Admin UI, scoped notice management, settings, guarded updates, and recovery actions
   Core/        Lifecycle and service coordination
   Database/    Schema and table names
-  Health/      Local health probes and aggregate results
+  Health/      Core and optional ecosystem health probes plus aggregate results
   Ledger/      Change and recovery event persistence
   Policy/      Maintenance-window policy
   Recovery/    Recovery eligibility and scoped plugin-file restore execution
@@ -57,11 +60,13 @@ src/
 assets/        Shipped admin assets
   js/          RevertShield-scoped notice manager
 docs/          Architecture, roadmap, release checklist
-tests/         Real WordPress runtime smoke and regression assertions
+tests/         Real WordPress runtime smoke, regression, and ecosystem integration assertions
 .github/       CI, runtime matrix, and WordPress Plugin Check workflow
 ```
 
 Recovery is intentionally component-aware. RevertShield does not implement generic SQL reversal. A supported recovery operation must know which component changed, what was snapshotted, whether the snapshot is intact, whether it belongs to the target component, and whether the restored files exactly match the verified manifest.
+
+The WooCommerce health adapter is intentionally read-only. It uses the customer-facing Store API product collection only when WooCommerce is already active and does not access orders, customers, payments, carts, checkout mutation endpoints, API credentials, or external services.
 
 ## Development requirements
 
@@ -76,10 +81,11 @@ Pull requests and release candidates are expected to pass:
 - PHP syntax checks across supported PHP versions.
 - WordPress Coding Standards via PHPCS.
 - Real WordPress runtime smoke and regression tests on the minimum supported boundary and the latest supported boundary.
+- Real current WooCommerce activation and Store API integration coverage on the latest supported boundary for releases that change the WooCommerce adapter.
 - Official WordPress Plugin Check against the built distribution directory.
 - Release allowlist packaging so development-only files are never shipped accidentally.
 
-The runtime matrix installs WordPress, activates the built RevertShield package, creates and verifies a fixture snapshot, proves guarded-update and recovery gates fail closed, validates maintenance-window policy and batch pause behavior, performs a real scoped fixture recovery, checks multi-probe health and ledger persistence, verifies tamper rejection, and smoke-renders the administrator screens.
+The runtime matrix installs WordPress, activates the built RevertShield package, creates and verifies a fixture snapshot, proves guarded-update and recovery gates fail closed, validates maintenance-window policy and batch pause behavior, performs a real scoped fixture recovery, checks multi-probe health and ledger persistence, verifies tamper rejection, and smoke-renders the administrator screens. The latest runtime boundary also installs and activates the current WooCommerce release and validates the real public Store API route used by the optional health adapter.
 
 ## WordPress.org policy
 
