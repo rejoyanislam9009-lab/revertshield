@@ -10,10 +10,14 @@
 use RevertShield\Admin\MultisiteNotice;
 use RevertShield\Database\Migrator;
 use RevertShield\Database\Tables;
+use RevertShield\Health\HealthChecker;
+use RevertShield\Ledger\ChangeRepository;
 use RevertShield\Recovery\RecoveryEligibility;
 use RevertShield\Snapshot\PluginSnapshotService;
+use RevertShield\Snapshot\SnapshotCleanup;
 use RevertShield\Snapshot\SnapshotRepository;
 use RevertShield\Snapshot\SnapshotVerifier;
+use RevertShield\Support\Cleanup;
 use RevertShield\Support\SiteContext;
 use RevertShield\Update\SafeUpdateGate;
 
@@ -65,6 +69,11 @@ $assert( $main_site_id === $main_context->blog_id(), 'SiteContext reported the w
 $assert( 0 < $main_context->network_id(), 'SiteContext did not report a network ID.' );
 $assert( Migrator::SCHEMA_VERSION === (string) get_option( 'revertshield_schema_version', '' ), 'Main-site RevertShield schema was not provisioned.' );
 $assert( is_array( get_option( 'revertshield_settings', null ) ), 'Main-site RevertShield defaults were not provisioned.' );
+$assert( false !== wp_next_scheduled( Cleanup::HOOK ), 'Main-site ledger/health cleanup was not scheduled.' );
+$assert( false !== wp_next_scheduled( SnapshotCleanup::HOOK ), 'Main-site snapshot cleanup was not scheduled.' );
+
+$main_change_count = ( new ChangeRepository() )->count();
+$main_health_count = ( new HealthChecker( array() ) )->count();
 
 $fixture_slug = 'revertshield-multisite-fixture';
 $fixture_file = $fixture_slug . '/revertshield-multisite-fixture.php';
@@ -118,6 +127,8 @@ $second_context = new SiteContext();
 $assert( $second_site_id === $second_context->blog_id(), 'SiteContext did not follow switch_to_blog().' );
 $assert( Migrator::SCHEMA_VERSION === (string) get_option( 'revertshield_schema_version', '' ), 'New Multisite site was not provisioned by RevertShield.' );
 $assert( is_array( get_option( 'revertshield_settings', null ) ), 'New Multisite site is missing RevertShield defaults.' );
+$assert( false !== wp_next_scheduled( Cleanup::HOOK ), 'Secondary-site ledger/health cleanup was not scheduled.' );
+$assert( false !== wp_next_scheduled( SnapshotCleanup::HOOK ), 'Secondary-site snapshot cleanup was not scheduled.' );
 
 $second_snapshot_table = Tables::snapshots();
 // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Runtime test verifies per-site schema provisioning.
@@ -141,6 +152,29 @@ $assert(
 	'Secondary-site snapshot storage was not explicitly site-scoped.'
 );
 
+$second_changes = new ChangeRepository();
+$recorded       = $second_changes->record( 'multisite_test_event', 'site', (string) $second_site_id, array(), 'test' );
+$assert( false !== $recorded, 'Secondary-site ledger event could not be recorded.' );
+$assert( 1 === $second_changes->count(), 'Secondary-site ledger did not remain isolated after switch_to_blog().' );
+
+$http_pass = static function () {
+	return array(
+		'headers'  => array(),
+		'body'     => '{}',
+		'response' => array(
+			'code'    => 200,
+			'message' => 'OK',
+		),
+		'cookies'  => array(),
+		'filename' => null,
+	);
+};
+add_filter( 'pre_http_request', $http_pass, 10, 3 );
+$second_health = ( new HealthChecker( array() ) )->run_site_check();
+remove_filter( 'pre_http_request', $http_pass, 10 );
+$assert( 'pass' === $second_health['status'], 'Secondary-site deterministic health suite did not pass.' );
+$assert( 1 === ( new HealthChecker( array() ) )->count(), 'Secondary-site health history did not remain site-scoped.' );
+
 if ( ! function_exists( 'set_current_screen' ) ) {
 	require_once ABSPATH . 'wp-admin/includes/screen.php';
 }
@@ -158,6 +192,9 @@ restore_current_blog();
 if ( get_current_blog_id() !== $main_site_id ) {
 	switch_to_blog( $main_site_id );
 }
+
+$assert( $main_change_count === ( new ChangeRepository() )->count(), 'Secondary-site ledger write leaked into the main-site ledger.' );
+$assert( $main_health_count === ( new HealthChecker( array() ) )->count(), 'Secondary-site health write leaked into the main-site health table.' );
 
 // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_unlink -- Runtime test fixture cleanup.
 @unlink( $fixture_path );
