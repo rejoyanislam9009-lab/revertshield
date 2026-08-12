@@ -85,9 +85,23 @@
 - Deterministic regression coverage for baseline, WooCommerce-active, and WooCommerce-failure behavior.
 - Real current WooCommerce install/activation and Store API integration coverage on the latest supported WordPress/PHP runtime boundary.
 
-## Phase 5B - Remaining ecosystem adapters
+## Phase 5B - Multisite safety boundaries - in progress for 0.8.0
 
-- Multisite-aware storage and operations.
+- Explicit current site/network context for snapshot ownership decisions.
+- Site-scoped snapshot manifest metadata binding origin blog and network identifiers.
+- Explicit Multisite site namespace inside snapshot storage paths in addition to WordPress uploads isolation.
+- Independent verification fails closed when a snapshot belongs to another site/network context.
+- Legacy single-site snapshots remain usable on single-site WordPress; snapshots without Multisite ownership metadata require fresh capture after Multisite enablement.
+- Existing network-activated sites self-heal RevertShield schema/defaults on first load.
+- Newly initialized Multisite sites receive RevertShield schema/defaults and cleanup schedules through `wp_initialize_site`.
+- Guarded plugin updates and plugin-file recovery remain disabled on Multisite until RevertShield can validate post-change health across the affected network boundary; snapshots and local observation remain available.
+- Persistent admin messaging explains the Multisite safety mode instead of implying unsupported shared-file recovery.
+- Real WordPress Multisite runtime regression coverage for provisioning, storage isolation, snapshot ownership, cross-site rejection, and mutation fail-closed behavior.
+- No network-wide automatic rollback or generic database rollback.
+
+## Phase 5C - Remaining ecosystem/control adapters
+
+- Network-scoped guarded plugin update/recovery only after a bounded network-wide health contract is defined and verified.
 - WP-CLI commands.
 - REST endpoints with explicit permission callbacks.
 - Optional external notification adapters only if they can preserve RevertShield's local-first privacy model and explicit administrator control.
