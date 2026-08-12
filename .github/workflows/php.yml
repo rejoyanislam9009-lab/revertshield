@@ -155,23 +155,45 @@ jobs:
         run: wp eval-file "$GITHUB_WORKSPACE/tests/runtime-multisite.php" --path=/tmp/revertshield-ms
 
   plugin-check:
-    name: WordPress Plugin Check
+    name: Official WordPress Plugin Check
     runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
     steps:
       - uses: actions/checkout@v4
       - uses: shivammathur/setup-php@v2
         with:
           php-version: '8.3'
           coverage: none
+          tools: wp-cli
       - name: Build release artifact
         run: |
           chmod +x ./bin/build-release.sh
-          ./bin/build-release.sh ./revertshield.zip
-          mkdir -p ./tmp-build
-          unzip -q ./revertshield.zip -d ./tmp-build
-      - name: Run official WordPress Plugin Check
-        uses: wordpress/plugin-check-action@v1
-        with:
-          build-dir: './tmp-build/revertshield'
-          slug: 'revertshield'
-          strict: true
+          ./bin/build-release.sh /tmp/revertshield.zip
+      - name: Install deterministic WordPress test site
+        run: |
+          mkdir -p /tmp/revertshield-plugin-check
+          wp core download --path=/tmp/revertshield-plugin-check --version=7.0.3 --force
+          wp config create --path=/tmp/revertshield-plugin-check --dbname=revertshield_plugin_check --dbuser=root --dbpass=root --dbhost=127.0.0.1:3306 --skip-check
+          wp db create --path=/tmp/revertshield-plugin-check
+          wp core install --path=/tmp/revertshield-plugin-check --url=http://revertshield.test --title="RevertShield Plugin Check" --admin_user=admin --admin_password=test-password --admin_email=test@example.com --skip-email
+      - name: Install RevertShield and official Plugin Check
+        run: |
+          unzip -q /tmp/revertshield.zip -d /tmp/revertshield-plugin-check/wp-content/plugins
+          wp plugin activate revertshield --path=/tmp/revertshield-plugin-check
+          wp plugin install plugin-check --activate --path=/tmp/revertshield-plugin-check
+      - name: Run official WordPress Plugin Check in strict mode
+        run: |
+          wp plugin check revertshield --format=json --require=/tmp/revertshield-plugin-check/wp-content/plugins/plugin-check/cli.php --path=/tmp/revertshield-plugin-check > /tmp/plugin-check-results.json
+          cat /tmp/plugin-check-results.json
+          php -r '$results = json_decode(file_get_contents("/tmp/plugin-check-results.json"), true); if (!is_array($results)) { fwrite(STDERR, "Plugin Check did not return valid JSON.\n"); exit(1); } if (count($results) > 0) { fwrite(STDERR, "Strict Plugin Check found findings.\n"); exit(1); }'
