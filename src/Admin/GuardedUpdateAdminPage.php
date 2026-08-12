@@ -32,10 +32,10 @@ final class GuardedUpdateAdminPage {
 	/**
 	 * Constructor.
 	 *
-	 * @param SnapshotRepository              $snapshots          Snapshot repository.
-	 * @param GuardedPluginUpdateService      $service            Guarded update service.
-	 * @param GuardedUpdateBatchService|null  $batch              Optional guarded batch service.
-	 * @param MaintenanceWindow|null          $maintenance_window Optional maintenance-window policy.
+	 * @param SnapshotRepository             $snapshots          Snapshot repository.
+	 * @param GuardedPluginUpdateService     $service            Guarded update service.
+	 * @param GuardedUpdateBatchService|null $batch              Optional guarded batch service.
+	 * @param MaintenanceWindow|null         $maintenance_window Optional maintenance-window policy.
 	 */
 	public function __construct(
 		SnapshotRepository $snapshots,
