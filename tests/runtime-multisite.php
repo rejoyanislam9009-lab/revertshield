@@ -152,10 +152,12 @@ $assert(
 	'Secondary-site snapshot storage was not explicitly site-scoped.'
 );
 
-$second_changes = new ChangeRepository();
-$recorded       = $second_changes->record( 'multisite_test_event', 'site', (string) $second_site_id, array(), 'test' );
+$second_changes_before = ( new ChangeRepository() )->count();
+$second_health_before  = ( new HealthChecker( array() ) )->count();
+$second_changes        = new ChangeRepository();
+$recorded              = $second_changes->record( 'multisite_test_event', 'site', (string) $second_site_id, array(), 'test' );
 $assert( false !== $recorded, 'Secondary-site ledger event could not be recorded.' );
-$assert( 1 === $second_changes->count(), 'Secondary-site ledger did not remain isolated after switch_to_blog().' );
+$assert( ( $second_changes_before + 1 ) === $second_changes->count(), 'Secondary-site ledger did not remain isolated after switch_to_blog().' );
 
 $http_pass = static function () {
 	return array(
@@ -173,7 +175,7 @@ add_filter( 'pre_http_request', $http_pass, 10, 3 );
 $second_health = ( new HealthChecker( array() ) )->run_site_check();
 remove_filter( 'pre_http_request', $http_pass, 10 );
 $assert( 'pass' === $second_health['status'], 'Secondary-site deterministic health suite did not pass.' );
-$assert( 1 === ( new HealthChecker( array() ) )->count(), 'Secondary-site health history did not remain site-scoped.' );
+$assert( ( $second_health_before + 1 ) === ( new HealthChecker( array() ) )->count(), 'Secondary-site health history did not remain site-scoped.' );
 
 if ( ! function_exists( 'set_current_screen' ) ) {
 	require_once ABSPATH . 'wp-admin/includes/screen.php';
