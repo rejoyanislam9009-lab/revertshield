@@ -217,9 +217,9 @@ final class HealthChecker {
 	 */
 	private function probe_label( $check_type ) {
 		$labels = array(
-			'homepage_http'               => __( 'Homepage', 'revertshield' ),
-			'rest_api_http'               => __( 'REST API', 'revertshield' ),
-			'woocommerce_store_api_http'  => __( 'WooCommerce Store API', 'revertshield' ),
+			'homepage_http'              => __( 'Homepage', 'revertshield' ),
+			'rest_api_http'              => __( 'REST API', 'revertshield' ),
+			'woocommerce_store_api_http' => __( 'WooCommerce Store API', 'revertshield' ),
 		);
 
 		if ( isset( $labels[ $check_type ] ) ) {
