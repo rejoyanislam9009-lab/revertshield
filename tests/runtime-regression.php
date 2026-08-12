@@ -27,6 +27,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 	throw new RuntimeException( 'WordPress did not bootstrap.' );
 }
 
+global $wpdb;
+
 $assert = static function ( $condition, $message ) {
 	if ( ! $condition ) {
 		throw new RuntimeException( $message );
