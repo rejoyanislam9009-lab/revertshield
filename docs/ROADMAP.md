@@ -50,6 +50,20 @@
 - Short-lived lock preventing concurrent manual recoveries.
 - No RevertShield self-recovery, generic SQL rollback, or automatic rollback.
 
+## Phase 3D - Runtime regression coverage - complete in 0.5.0
+
+- Real WordPress install-and-activate smoke coverage.
+- Minimum supported boundary coverage on WordPress 6.5 and PHP 7.4.
+- Latest supported boundary coverage on the current WordPress release and PHP 8.4.
+- Bootstrap, migration, custom-table, default-setting, cleanup-schedule, and protected-action assertions.
+- Real fixture-plugin snapshot creation and independent verification.
+- Guarded-update failure-closed coverage for mismatched, not-ready, expired, unavailable-update, and self-update cases.
+- Recovery failure-closed coverage for mismatched, not-ready, expired, self-recovery, and concurrent-recovery cases.
+- Real scoped fixture recovery with exact restored-file and version verification.
+- Post-recovery health persistence and recovery ledger verification.
+- Snapshot-object tamper detection proving verification, update eligibility, and recovery eligibility fail closed.
+- Dashboard, Snapshots, Updates, Recovery, and native navigation render smoke coverage.
+
 ## Phase 4 - Policy engine
 
 - Multiple health probes.
