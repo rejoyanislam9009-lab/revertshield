@@ -104,6 +104,48 @@ jobs:
         if: matrix.wordpress == 'latest'
         run: wp eval-file "$GITHUB_WORKSPACE/tests/runtime-woocommerce-live.php" --path=/tmp/revertshield-wp
 
+  multisite-runtime:
+    name: WordPress latest / PHP 8.4 Multisite safety
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          coverage: none
+          tools: wp-cli
+      - name: Build installable plugin
+        run: |
+          chmod +x ./bin/build-release.sh
+          ./bin/build-release.sh /tmp/revertshield.zip
+      - name: Install WordPress Multisite
+        run: |
+          mkdir -p /tmp/revertshield-ms
+          wp core download --path=/tmp/revertshield-ms --version=latest --force
+          wp config create --path=/tmp/revertshield-ms --dbname=revertshield_ms_test --dbuser=root --dbpass=root --dbhost=127.0.0.1:3306 --skip-check
+          wp db create --path=/tmp/revertshield-ms
+          wp core multisite-install --path=/tmp/revertshield-ms --url=http://revertshield.test --title="RevertShield Multisite Test" --admin_user=admin --admin_password=test-password --admin_email=test@example.com --skip-email
+      - name: Install and network-activate RevertShield
+        run: |
+          unzip -q /tmp/revertshield.zip -d /tmp/revertshield-ms/wp-content/plugins
+          wp plugin activate revertshield --network --path=/tmp/revertshield-ms
+      - name: Create secondary site
+        run: wp site create --slug=second --title="RevertShield Second Site" --email=test@example.com --path=/tmp/revertshield-ms
+      - name: Run Multisite safety assertions
+        run: wp eval-file "$GITHUB_WORKSPACE/tests/runtime-multisite.php" --path=/tmp/revertshield-ms
+
   plugin-check:
     name: WordPress Plugin Check
     runs-on: ubuntu-latest
