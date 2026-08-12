@@ -200,7 +200,7 @@ final class AdminPage {
 						<?php wp_nonce_field( 'revertshield_health_check' ); ?>
 						<?php submit_button( __( 'Run Site Health Check', 'revertshield' ), 'secondary', 'submit', false ); ?>
 					</form>
-					<p class="description"><?php echo esc_html__( 'Checks both the public homepage and the WordPress REST API index.', 'revertshield' ); ?></p>
+					<p class="description"><?php echo esc_html__( 'Checks the public homepage, WordPress REST API index, and applicable local ecosystem probes such as the WooCommerce Store API.', 'revertshield' ); ?></p>
 				</section>
 
 				<section class="revertshield-card">
