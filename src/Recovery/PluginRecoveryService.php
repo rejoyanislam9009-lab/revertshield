@@ -43,13 +43,13 @@ final class PluginRecoveryService {
 	/**
 	 * Constructor.
 	 *
-	 * @param RecoveryEligibility|null  $eligibility    Optional recovery eligibility gate.
-	 * @param SnapshotRepository|null   $snapshots      Optional snapshot repository.
-	 * @param PluginSourceLocator|null  $source_locator Optional plugin source locator.
-	 * @param StorageLocator|null       $storage_locator Optional snapshot storage locator.
-	 * @param PluginInventory|null      $inventory      Optional plugin inventory builder.
-	 * @param HealthChecker|null        $health         Optional health checker.
-	 * @param ChangeRepository|null     $ledger         Optional change ledger.
+	 * @param RecoveryEligibility|null $eligibility    Optional recovery eligibility gate.
+	 * @param SnapshotRepository|null  $snapshots      Optional snapshot repository.
+	 * @param PluginSourceLocator|null $source_locator Optional plugin source locator.
+	 * @param StorageLocator|null      $storage_locator Optional snapshot storage locator.
+	 * @param PluginInventory|null     $inventory      Optional plugin inventory builder.
+	 * @param HealthChecker|null       $health         Optional health checker.
+	 * @param ChangeRepository|null    $ledger         Optional change ledger.
 	 */
 	public function __construct(
 		RecoveryEligibility $eligibility = null,
