@@ -24,8 +24,8 @@ final class RecoveryAdminPage {
 	/**
 	 * Constructor.
 	 *
-	 * @param SnapshotRepository   $snapshots Snapshot repository.
-	 * @param PluginRecoveryService $service  Plugin recovery service.
+	 * @param SnapshotRepository    $snapshots Snapshot repository.
+	 * @param PluginRecoveryService $service   Plugin recovery service.
 	 */
 	public function __construct( SnapshotRepository $snapshots, PluginRecoveryService $service ) {
 		$this->snapshots = $snapshots;
@@ -94,7 +94,7 @@ final class RecoveryAdminPage {
 			$this->redirect( 'failed', 'revertshield_recovery_confirmation_required' );
 		}
 
-		$plugin_file = isset( $_POST['plugin_file'] )
+		$plugin_file   = isset( $_POST['plugin_file'] )
 			? sanitize_text_field( wp_unslash( $_POST['plugin_file'] ) )
 			: '';
 		$snapshot_uuid = isset( $_POST['snapshot_uuid'] )
