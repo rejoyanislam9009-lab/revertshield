@@ -3,7 +3,7 @@ Tags: maintenance, updates, debugging, health check, activity log
 Requires at least: 6.5
 Tested up to: 7.0
 Requires PHP: 7.4
-Stable tag: 0.6.0
+Stable tag: 0.7.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -20,6 +20,7 @@ The current release provides a local-first operational safety layer:
 * Records theme switches.
 * Can record the names of selected critical WordPress options without storing their old or new values.
 * Runs an on-demand local site-health suite covering the public homepage and WordPress REST API index.
+* When WooCommerce is active, adds a bounded read-only WooCommerce Store API product-collection probe to the same health decision without requiring API credentials.
 * Stores change, health, and snapshot history in dedicated, indexed database tables.
 * Lets authorized administrators create integrity-verified snapshots of installed plugin files.
 * Stores snapshot contents as extensionless, SHA-256-addressed objects under the WordPress uploads directory.
@@ -41,10 +42,10 @@ The current release provides a local-first operational safety layer:
 * Preserves the pre-recovery plugin files during the transaction until the restored plugin passes exact inventory, SHA-256, and size verification.
 * Runs the multi-probe site-health suite after successful manual recovery and records healthy or unhealthy outcomes locally.
 * Prevents concurrent manual recovery operations with a short-lived recovery lock.
-* Includes automated real-WordPress runtime regression coverage for bootstrap, snapshot integrity, guarded-update safety gates, policy enforcement, scoped recovery, health persistence, tamper detection, and admin rendering.
+* Includes automated real-WordPress runtime regression coverage for bootstrap, snapshot integrity, guarded-update safety gates, policy enforcement, scoped recovery, health persistence, tamper detection, WooCommerce health integration, and admin rendering.
 * Sends no telemetry and requires no external account.
 
-RevertShield 0.6.0 keeps supported recovery explicit, administrator-controlled, component-scoped, and verification-gated. It does not perform generic database rollback, does not restore RevertShield itself, and does not automatically roll back or restore after an unhealthy health result.
+RevertShield 0.7.0 keeps supported recovery explicit, administrator-controlled, component-scoped, and verification-gated. It does not perform generic database rollback, does not restore RevertShield itself, and does not automatically roll back or restore after an unhealthy health result.
 
 == Installation ==
 
@@ -71,11 +72,11 @@ Snapshot objects are stored below the site's WordPress uploads directory in a Re
 
 = What does the site-health suite check? =
 
-RevertShield checks the site's public homepage and the WordPress REST API index through the WordPress HTTP API. Both probes must pass for the aggregate site-health result to pass.
+RevertShield always checks the site's public homepage and WordPress REST API index through the WordPress HTTP API. When WooCommerce is active, it also performs a bounded read-only request against the public WooCommerce Store API product collection. All applicable probes must pass for the aggregate site-health result to pass. RevertShield does not use WooCommerce API credentials and does not read orders, customers, payments, carts, or checkout data for this probe.
 
 = How does a guarded plugin update work? =
 
-RevertShield only shows plugin updates currently reported by WordPress. Before an update can run, an authorized administrator must select a matching ready snapshot. RevertShield independently verifies the snapshot again, checks the optional maintenance-window policy, confirms that the update offer still exists, and then delegates the update to WordPress core's plugin upgrader. Afterward, RevertShield runs the site-health suite and records the result locally.
+RevertShield only shows plugin updates currently reported by WordPress. Before an update can run, an authorized administrator must select a matching ready snapshot. RevertShield independently verifies the snapshot again, checks the optional maintenance-window policy, confirms that the update offer still exists, and then delegates the update to WordPress core's plugin upgrader. Afterward, RevertShield runs the site-health suite, including applicable ecosystem probes, and records the result locally.
 
 = How do guarded update batches work? =
 
@@ -95,13 +96,24 @@ An authorized administrator explicitly selects an eligible ready snapshot and co
 
 = Does RevertShield automatically roll back an unhealthy update or recovery? =
 
-No. Version 0.6.0 provides explicit manual plugin recovery, not automatic rollback. If a post-update or post-recovery health result is unhealthy, RevertShield records the result and stops or pauses the current batch. It does not perform a generic database rollback or automatically start another restore.
+No. Version 0.7.0 provides explicit manual plugin recovery, not automatic rollback. If a post-update or post-recovery health result is unhealthy, RevertShield records the result and stops or pauses the current batch. It does not perform a generic database rollback or automatically start another restore.
 
 = Does uninstall remove RevertShield data? =
 
 Not by default. Enable the delete-on-uninstall setting before uninstalling if you want RevertShield's local tables, settings, and managed snapshot storage removed.
 
 == Changelog ==
+
+= 0.7.0 =
+* Added an optional ecosystem health-probe adapter contract for local integration-specific health checks.
+* Added automatic WooCommerce runtime detection without making WooCommerce a hard dependency or loading it from RevertShield.
+* Added a bounded read-only WooCommerce Store API product-collection probe when WooCommerce is active.
+* Added WooCommerce health to manual site checks, post-guarded-update validation, and post-recovery validation through the shared health suite.
+* Kept non-WooCommerce sites on the existing required homepage and WordPress REST API probes.
+* Added failure-closed aggregate handling when the WooCommerce Store API probe is unhealthy.
+* Added deterministic WooCommerce adapter regression coverage on supported runtime boundaries.
+* Added a real current WooCommerce install, activation, and Store API integration assertion on the latest supported WordPress/PHP runtime boundary.
+* Kept WooCommerce API credentials, order/customer/payment access, cart or checkout mutation, telemetry, generic database rollback, and automatic rollback disabled.
 
 = 0.6.0 =
 * Added a RevertShield-scoped admin notification center on RevertShield screens.
