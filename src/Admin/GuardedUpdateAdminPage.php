@@ -32,10 +32,10 @@ final class GuardedUpdateAdminPage {
 	/**
 	 * Constructor.
 	 *
-	 * @param SnapshotRepository          $snapshots          Snapshot repository.
-	 * @param GuardedPluginUpdateService  $service            Guarded update service.
-	 * @param GuardedUpdateBatchService|null $batch           Optional guarded batch service.
-	 * @param MaintenanceWindow|null      $maintenance_window Optional maintenance-window policy.
+	 * @param SnapshotRepository              $snapshots          Snapshot repository.
+	 * @param GuardedPluginUpdateService      $service            Guarded update service.
+	 * @param GuardedUpdateBatchService|null  $batch              Optional guarded batch service.
+	 * @param MaintenanceWindow|null          $maintenance_window Optional maintenance-window policy.
 	 */
 	public function __construct(
 		SnapshotRepository $snapshots,
@@ -136,11 +136,14 @@ final class GuardedUpdateAdminPage {
 
 		check_admin_referer( 'revertshield_guarded_plugin_batch' );
 
-		$raw_items = isset( $_POST['batch_items'] ) && is_array( $_POST['batch_items'] )
-			? wp_unslash( $_POST['batch_items'] )
-			: array();
-		$items     = array();
+		$raw_items = array();
+		// phpcs:disable WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Nested batch values are unslashed and sanitized immediately before use.
+		if ( isset( $_POST['batch_items'] ) && is_array( $_POST['batch_items'] ) ) {
+			$raw_items = wp_unslash( $_POST['batch_items'] );
+		}
+		// phpcs:enable WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
 
+		$items = array();
 		foreach ( array_slice( $raw_items, 0, 20 ) as $raw_item ) {
 			if ( ! is_array( $raw_item ) || empty( $raw_item['selected'] ) ) {
 				continue;
@@ -180,11 +183,11 @@ final class GuardedUpdateAdminPage {
 			require_once ABSPATH . 'wp-admin/includes/update.php';
 		}
 
-		$updates     = get_plugin_updates();
-		$snapshots   = $this->snapshots->recent( 100 );
-		$self        = plugin_basename( REVERTSHIELD_FILE );
-		$window      = $this->maintenance_window->status();
-		$batch_rows  = array();
+		$updates    = get_plugin_updates();
+		$snapshots  = $this->snapshots->recent( 100 );
+		$self       = plugin_basename( REVERTSHIELD_FILE );
+		$window     = $this->maintenance_window->status();
+		$batch_rows = array();
 
 		if ( isset( $updates[ $self ] ) ) {
 			unset( $updates[ $self ] );
@@ -410,24 +413,24 @@ final class GuardedUpdateAdminPage {
 	 * @return void
 	 */
 	private function render_notice() {
-		$status = isset( $_GET['rs_update'] ) ? sanitize_key( wp_unslash( $_GET['rs_update'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only status after a nonce-protected admin action.
-		$batch  = isset( $_GET['rs_batch'] ) ? sanitize_key( wp_unslash( $_GET['rs_batch'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
-		$code   = isset( $_GET['rs_code'] ) ? sanitize_key( wp_unslash( $_GET['rs_code'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
-		$count  = isset( $_GET['rs_completed'] ) ? absint( wp_unslash( $_GET['rs_completed'] ) ) : 0; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+		$status    = isset( $_GET['rs_update'] ) ? sanitize_key( wp_unslash( $_GET['rs_update'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only status after a nonce-protected admin action.
+		$batch     = isset( $_GET['rs_batch'] ) ? sanitize_key( wp_unslash( $_GET['rs_batch'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+		$code      = isset( $_GET['rs_code'] ) ? sanitize_key( wp_unslash( $_GET['rs_code'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+		$count     = isset( $_GET['rs_completed'] ) ? absint( wp_unslash( $_GET['rs_completed'] ) ) : 0; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
 		$recommend = isset( $_GET['rs_recovery_snapshot'] ) ? sanitize_text_field( wp_unslash( $_GET['rs_recovery_snapshot'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
 
 		if ( '' !== $status ) {
 			if ( 'healthy' === $status ) {
-				$class   = 'notice-success';
-				$message = __( 'Guarded plugin update completed and the site-health suite passed.', 'revertshield' );
+				$notice_class = 'notice-success';
+				$message      = __( 'Guarded plugin update completed and the site-health suite passed.', 'revertshield' );
 			} elseif ( 'unhealthy' === $status ) {
-				$class   = 'notice-error';
-				$message = __( 'The plugin update completed, but the site-health suite failed. RevertShield recorded the incident and did not perform an automatic restore.', 'revertshield' );
+				$notice_class = 'notice-error';
+				$message      = __( 'The plugin update completed, but the site-health suite failed. RevertShield recorded the incident and did not perform an automatic restore.', 'revertshield' );
 			} else {
-				$class   = 'notice-error';
-				$message = __( 'The guarded plugin update did not complete. RevertShield stopped without attempting an automatic restore.', 'revertshield' );
+				$notice_class = 'notice-error';
+				$message      = __( 'The guarded plugin update did not complete. RevertShield stopped without attempting an automatic restore.', 'revertshield' );
 			}
-			$this->notice_markup( $class, $message, $code, $recommend );
+			$this->notice_markup( $notice_class, $message, $code, $recommend );
 		}
 
 		if ( '' !== $batch ) {
@@ -462,21 +465,30 @@ final class GuardedUpdateAdminPage {
 	/**
 	 * Output one managed RevertShield notice.
 	 *
-	 * @param string $class     WordPress notice class.
-	 * @param string $message   User-facing message.
-	 * @param string $code      Optional error code.
-	 * @param string $recommend Optional recommended recovery snapshot UUID.
+	 * @param string $notice_class WordPress notice class.
+	 * @param string $message      User-facing message.
+	 * @param string $code         Optional error code.
+	 * @param string $recommend    Optional recommended recovery snapshot UUID.
 	 * @return void
 	 */
-	private function notice_markup( $class, $message, $code, $recommend ) {
+	private function notice_markup( $notice_class, $message, $code, $recommend ) {
 		?>
-		<div class="notice <?php echo esc_attr( $class ); ?> is-dismissible"><p>
+		<div class="notice <?php echo esc_attr( $notice_class ); ?> is-dismissible"><p>
 			<?php echo esc_html( $message ); ?>
 			<?php if ( '' !== $code ) : ?>
 				<?php echo ' ' . esc_html( sprintf( /* translators: %s: internal error code. */ __( 'Error code: %s', 'revertshield' ), $code ) ); ?>
 			<?php endif; ?>
 			<?php if ( '' !== $recommend ) : ?>
-				<?php $url = add_query_arg( array( 'page' => 'revertshield-recovery', 'rs_recommend' => '1', 'rs_recovery_snapshot' => $recommend ), admin_url( 'tools.php' ) ); ?>
+				<?php
+				$url = add_query_arg(
+					array(
+						'page'                 => 'revertshield-recovery',
+						'rs_recommend'         => '1',
+						'rs_recovery_snapshot' => $recommend,
+					),
+					admin_url( 'tools.php' )
+				);
+				?>
 				<a href="<?php echo esc_url( $url ); ?>"><?php echo esc_html__( 'Review recommended recovery snapshot', 'revertshield' ); ?></a>
 			<?php endif; ?>
 		</p></div>
@@ -497,7 +509,7 @@ final class GuardedUpdateAdminPage {
 		$args     = array( 'page' => 'revertshield-updates' );
 
 		if ( $is_batch ) {
-			$args['rs_batch'] = str_replace( 'batch-', '', sanitize_key( $status ) );
+			$args['rs_batch']     = str_replace( 'batch-', '', sanitize_key( $status ) );
 			$args['rs_completed'] = absint( $completed );
 		} else {
 			$args['rs_update'] = sanitize_key( $status );
@@ -508,7 +520,7 @@ final class GuardedUpdateAdminPage {
 		}
 
 		if ( '' !== $recommend ) {
-			$args['rs_recommend'] = '1';
+			$args['rs_recommend']         = '1';
 			$args['rs_recovery_snapshot'] = sanitize_text_field( $recommend );
 		}
 
