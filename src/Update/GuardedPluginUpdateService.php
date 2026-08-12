@@ -9,6 +9,7 @@ namespace RevertShield\Update;
 
 use RevertShield\Health\HealthChecker;
 use RevertShield\Ledger\ChangeRepository;
+use RevertShield\Policy\MaintenanceWindow;
 use RevertShield\Snapshot\PluginSourceLocator;
 
 /**
@@ -27,28 +28,34 @@ final class GuardedPluginUpdateService {
 	/** @var ChangeRepository */
 	private $ledger;
 
+	/** @var MaintenanceWindow */
+	private $maintenance_window;
+
 	/**
 	 * Constructor.
 	 *
-	 * @param SafeUpdateGate|null      $gate           Optional safe-update gate.
-	 * @param PluginSourceLocator|null $source_locator Optional plugin locator.
-	 * @param HealthChecker|null       $health         Optional health checker.
-	 * @param ChangeRepository|null    $ledger         Optional change ledger.
+	 * @param SafeUpdateGate|null      $gate               Optional safe-update gate.
+	 * @param PluginSourceLocator|null $source_locator     Optional plugin locator.
+	 * @param HealthChecker|null       $health             Optional health checker.
+	 * @param ChangeRepository|null    $ledger             Optional change ledger.
+	 * @param MaintenanceWindow|null   $maintenance_window Optional maintenance-window policy.
 	 */
 	public function __construct(
 		SafeUpdateGate $gate = null,
 		PluginSourceLocator $source_locator = null,
 		HealthChecker $health = null,
-		ChangeRepository $ledger = null
+		ChangeRepository $ledger = null,
+		MaintenanceWindow $maintenance_window = null
 	) {
-		$this->gate           = $gate ? $gate : new SafeUpdateGate();
-		$this->source_locator = $source_locator ? $source_locator : new PluginSourceLocator();
-		$this->health         = $health ? $health : new HealthChecker();
-		$this->ledger         = $ledger ? $ledger : new ChangeRepository();
+		$this->gate               = $gate ? $gate : new SafeUpdateGate();
+		$this->source_locator     = $source_locator ? $source_locator : new PluginSourceLocator();
+		$this->health             = $health ? $health : new HealthChecker();
+		$this->ledger             = $ledger ? $ledger : new ChangeRepository();
+		$this->maintenance_window = $maintenance_window ? $maintenance_window : new MaintenanceWindow();
 	}
 
 	/**
-	 * Execute one guarded plugin update and run a post-update homepage check.
+	 * Execute one guarded plugin update and run a post-update site-health suite.
 	 *
 	 * Automatic restore is intentionally not performed here.
 	 *
@@ -67,6 +74,13 @@ final class GuardedPluginUpdateService {
 			return new \WP_Error(
 				'revertshield_guarded_self_update_disabled',
 				__( 'Guarded self-updates are not enabled in this release.', 'revertshield' )
+			);
+		}
+
+		if ( ! $this->maintenance_window->allows_now() ) {
+			return new \WP_Error(
+				'revertshield_guarded_update_outside_maintenance_window',
+				__( 'Guarded plugin updates are currently outside the configured maintenance window.', 'revertshield' )
 			);
 		}
 
@@ -157,32 +171,44 @@ final class GuardedPluginUpdateService {
 			return $error;
 		}
 
-		$health = $this->health->run_homepage_check();
-		$event  = 'pass' === $health['status'] ? 'guarded_update_healthy' : 'guarded_update_unhealthy';
+		$health               = $this->health->run_site_check();
+		$event                = 'pass' === $health['status'] ? 'guarded_update_healthy' : 'guarded_update_unhealthy';
+		$recovery_recommended = false;
+
+		if ( 'pass' !== $health['status'] ) {
+			$recovery_check       = $this->gate->validate( $snapshot_uuid, $plugin_file );
+			$recovery_recommended = ! is_wp_error( $recovery_check );
+		}
 
 		$this->ledger->record(
 			$event,
 			'plugin',
 			$plugin_file,
 			array(
-				'snapshot_uuid' => $snapshot_uuid,
-				'from_version'  => $before_version,
-				'to_version'    => $after_version,
-				'health_status' => $health['status'],
-				'http_code'     => absint( $health['http_code'] ),
-				'duration_ms'   => absint( $health['duration_ms'] ),
+				'snapshot_uuid'        => $snapshot_uuid,
+				'from_version'         => $before_version,
+				'to_version'           => $after_version,
+				'health_status'        => $health['status'],
+				'health_check_type'    => isset( $health['check_type'] ) ? sanitize_key( $health['check_type'] ) : 'site_suite',
+				'probe_count'          => isset( $health['probes'] ) && is_array( $health['probes'] ) ? count( $health['probes'] ) : 0,
+				'failed_probe_count'   => isset( $health['failed_probes'] ) && is_array( $health['failed_probes'] ) ? count( $health['failed_probes'] ) : 0,
+				'http_code'            => absint( $health['http_code'] ),
+				'duration_ms'          => absint( $health['duration_ms'] ),
+				'recovery_recommended' => $recovery_recommended ? 1 : 0,
 			),
 			'guarded_update'
 		);
 
 		return array(
-			'plugin_file'   => $plugin_file,
-			'snapshot_uuid' => $snapshot_uuid,
-			'from_version'  => $before_version,
-			'to_version'    => $after_version,
-			'health_status' => $health['status'],
-			'http_code'     => absint( $health['http_code'] ),
-			'duration_ms'   => absint( $health['duration_ms'] ),
+			'plugin_file'          => $plugin_file,
+			'snapshot_uuid'        => $snapshot_uuid,
+			'from_version'         => $before_version,
+			'to_version'           => $after_version,
+			'health_status'        => $health['status'],
+			'http_code'            => absint( $health['http_code'] ),
+			'duration_ms'          => absint( $health['duration_ms'] ),
+			'failed_probes'        => isset( $health['failed_probes'] ) && is_array( $health['failed_probes'] ) ? $health['failed_probes'] : array(),
+			'recovery_recommended' => $recovery_recommended,
 		);
 	}
 

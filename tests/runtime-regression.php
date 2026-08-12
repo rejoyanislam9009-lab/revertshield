@@ -8,6 +8,7 @@
  */
 
 use RevertShield\Admin\AdminNavigation;
+use RevertShield\Admin\AdminNoticeCenter;
 use RevertShield\Admin\AdminPage;
 use RevertShield\Admin\GuardedUpdateAdminPage;
 use RevertShield\Admin\RecoveryAdminPage;
@@ -15,12 +16,14 @@ use RevertShield\Admin\SnapshotAdminPage;
 use RevertShield\Database\Tables;
 use RevertShield\Health\HealthChecker;
 use RevertShield\Ledger\ChangeRepository;
+use RevertShield\Policy\MaintenanceWindow;
 use RevertShield\Recovery\PluginRecoveryService;
 use RevertShield\Recovery\RecoveryEligibility;
 use RevertShield\Snapshot\PluginSnapshotService;
 use RevertShield\Snapshot\SnapshotRepository;
 use RevertShield\Snapshot\SnapshotVerifier;
 use RevertShield\Update\GuardedPluginUpdateService;
+use RevertShield\Update\GuardedUpdateBatchService;
 use RevertShield\Update\SafeUpdateGate;
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -71,15 +74,17 @@ $plugins = get_plugins();
 $assert( isset( $plugins[ $fixture_file ] ), 'Runtime fixture plugin was not detected by WordPress.' );
 $assert( '1.0.0' === $plugins[ $fixture_file ]['Version'], 'Runtime fixture plugin version is incorrect.' );
 
-$snapshots        = new SnapshotRepository();
-$snapshot_service = new PluginSnapshotService();
-$verifier         = new SnapshotVerifier( $snapshots );
-$update_gate      = new SafeUpdateGate( $snapshots, $verifier );
-$recovery_gate    = new RecoveryEligibility( $snapshots, $verifier );
-$health           = new HealthChecker();
-$ledger           = new ChangeRepository();
-$recovery         = new PluginRecoveryService( $recovery_gate, $snapshots, null, null, null, $health, $ledger );
-$guarded_update   = new GuardedPluginUpdateService( $update_gate, null, $health, $ledger );
+$snapshots          = new SnapshotRepository();
+$snapshot_service   = new PluginSnapshotService();
+$verifier           = new SnapshotVerifier( $snapshots );
+$update_gate        = new SafeUpdateGate( $snapshots, $verifier );
+$recovery_gate      = new RecoveryEligibility( $snapshots, $verifier );
+$health             = new HealthChecker();
+$ledger             = new ChangeRepository();
+$maintenance_window = new MaintenanceWindow();
+$recovery           = new PluginRecoveryService( $recovery_gate, $snapshots, null, null, null, $health, $ledger );
+$guarded_update     = new GuardedPluginUpdateService( $update_gate, null, $health, $ledger, $maintenance_window );
+$guarded_batch      = new GuardedUpdateBatchService( $guarded_update, $ledger );
 
 $snapshot = $snapshot_service->create( $fixture_file );
 $assert( ! is_wp_error( $snapshot ), 'Verified fixture snapshot creation failed.' );
@@ -154,6 +159,35 @@ $assert_error(
 	'Snapshot repository accepted a traversal storage path.'
 );
 
+$original_settings = get_option( 'revertshield_settings', array() );
+$window_settings   = is_array( $original_settings ) ? $original_settings : array();
+$window_settings['maintenance_window_enabled'] = 1;
+$window_settings['maintenance_window_start']   = '02:00';
+$window_settings['maintenance_window_end']     = '05:00';
+update_option( 'revertshield_settings', $window_settings, false );
+
+$open_window = new MaintenanceWindow(
+	static function () {
+		return new DateTimeImmutable( '2026-08-12 03:00:00', wp_timezone() );
+	}
+);
+$closed_window = new MaintenanceWindow(
+	static function () {
+		return new DateTimeImmutable( '2026-08-12 06:00:00', wp_timezone() );
+	}
+);
+$assert( true === $open_window->allows_now(), 'Maintenance window did not allow an in-window guarded operation.' );
+$assert( false === $closed_window->allows_now(), 'Maintenance window did not block an out-of-window guarded operation.' );
+
+$closed_guarded = new GuardedPluginUpdateService( $update_gate, null, $health, $ledger, $closed_window );
+$outside_window = $closed_guarded->execute( $fixture_file, $snapshot_uuid );
+$assert_error(
+	$outside_window,
+	'revertshield_guarded_update_outside_maintenance_window',
+	'Guarded update did not enforce the configured maintenance window.'
+);
+update_option( 'revertshield_settings', $original_settings, false );
+
 set_site_transient(
 	'update_plugins',
 	(object) array(
@@ -167,6 +201,26 @@ $assert_error(
 	'revertshield_guarded_update_unavailable',
 	'Guarded update did not fail closed when WordPress reported no update.'
 );
+
+$empty_batch = $guarded_batch->execute( array() );
+$assert_error(
+	$empty_batch,
+	'revertshield_guarded_batch_empty',
+	'Guarded batch did not reject an empty selection.'
+);
+
+$paused_batch = $guarded_batch->execute(
+	array(
+		array(
+			'plugin_file'   => $fixture_file,
+			'snapshot_uuid' => $snapshot_uuid,
+		),
+	)
+);
+$assert( is_array( $paused_batch ), 'Guarded batch did not return a normalized paused result.' );
+$assert( 'paused' === $paused_batch['status'], 'Guarded batch did not pause on the first guarded-update failure.' );
+$assert( 0 === (int) $paused_batch['completed_count'], 'Guarded batch incorrectly counted a failed update as completed.' );
+$assert( 'revertshield_guarded_update_unavailable' === $paused_batch['error_code'], 'Guarded batch paused with an unexpected error code.' );
 
 $self_update = $guarded_update->execute( plugin_basename( REVERTSHIELD_FILE ), wp_generate_uuid4() );
 $assert_error(
@@ -211,12 +265,19 @@ $assert( false !== strpos( $navigation, 'Updates' ), 'Admin navigation is missin
 $assert( false !== strpos( $navigation, 'Recovery' ), 'Admin navigation is missing Recovery.' );
 $assert( false !== strpos( $navigation, 'nav-tab-active' ), 'Admin navigation did not mark the current screen active.' );
 
+wp_dequeue_script( 'revertshield-admin-notices' );
+( new AdminNoticeCenter() )->assets( 'tools_page_revertshield' );
+$assert( wp_script_is( 'revertshield-admin-notices', 'enqueued' ), 'RevertShield notice manager was not scoped to a RevertShield screen.' );
+$assert( is_readable( REVERTSHIELD_PATH . 'assets/js/admin-notices.js' ), 'RevertShield notice-manager asset is missing.' );
+
 $dashboard_html = $capture(
 	static function () use ( $ledger, $health ) {
 		( new AdminPage( $ledger, $health ) )->render();
 	}
 );
 $assert( false !== strpos( $dashboard_html, 'RevertShield' ), 'Dashboard render smoke failed.' );
+$assert( false !== strpos( $dashboard_html, 'Run Site Health Check' ), 'Dashboard is missing the multi-probe health action.' );
+$assert( false !== strpos( $dashboard_html, 'maintenance_window_enabled' ), 'Dashboard is missing maintenance-window policy controls.' );
 
 $snapshot_html = $capture(
 	static function () use ( $snapshots, $snapshot_service, $ledger ) {
@@ -226,11 +287,12 @@ $snapshot_html = $capture(
 $assert( false !== strpos( $snapshot_html, 'Verified Plugin Snapshots' ), 'Snapshot screen render smoke failed.' );
 
 $updates_html = $capture(
-	static function () use ( $snapshots, $guarded_update ) {
-		( new GuardedUpdateAdminPage( $snapshots, $guarded_update ) )->render();
+	static function () use ( $snapshots, $guarded_update, $guarded_batch, $maintenance_window ) {
+		( new GuardedUpdateAdminPage( $snapshots, $guarded_update, $guarded_batch, $maintenance_window ) )->render();
 	}
 );
 $assert( false !== strpos( $updates_html, 'Guarded Plugin Updates' ), 'Guarded Updates screen render smoke failed.' );
+$assert( false !== strpos( $updates_html, 'Pause-on-failure guarded batch' ), 'Guarded Updates screen is missing pause-on-failure batch controls.' );
 
 $recovery_html = $capture(
 	static function () use ( $recovery_admin ) {
@@ -240,18 +302,21 @@ $recovery_html = $capture(
 $assert( false !== strpos( $recovery_html, 'Plugin Recovery' ), 'Recovery screen render smoke failed.' );
 $assert( false !== strpos( $recovery_html, 'confirm_recovery' ), 'Recovery screen is missing explicit confirmation control.' );
 
-// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents -- Runtime mutation before recovery test.
-file_put_contents( $main_path, $version_two );
-// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents -- Runtime mutation before recovery test.
-file_put_contents( $data_path, $data_two );
-wp_clean_plugins_cache( false );
-
-$plugins = get_plugins();
-$assert( '2.0.0' === $plugins[ $fixture_file ]['Version'], 'Fixture mutation was not visible before recovery.' );
+$_GET['rs_recommend']         = '1';
+$_GET['rs_recovery_snapshot'] = $snapshot_uuid;
+$recommended_recovery_html    = $capture(
+	static function () use ( $recovery_admin ) {
+		$recovery_admin->render();
+	}
+);
+unset( $_GET['rs_recommend'], $_GET['rs_recovery_snapshot'] );
+$assert( false !== strpos( $recommended_recovery_html, 'Recommended review' ), 'Recovery screen did not highlight the recommended verified snapshot.' );
+$assert( false !== strpos( $recommended_recovery_html, 'confirm_recovery' ), 'Recommended recovery bypassed explicit confirmation.' );
 
 $http_mock = static function ( $preempt, $parsed_args, $url ) {
 	unset( $parsed_args );
-	if ( home_url( '/' ) !== $url ) {
+	$targets = array( home_url( '/' ), rest_url() );
+	if ( ! in_array( $url, $targets, true ) ) {
 		return $preempt;
 	}
 
@@ -268,11 +333,25 @@ $http_mock = static function ( $preempt, $parsed_args, $url ) {
 };
 add_filter( 'pre_http_request', $http_mock, 10, 3 );
 
+$site_health = $health->run_site_check();
+$assert( 'pass' === $site_health['status'], 'Multi-probe site-health suite did not pass under the deterministic HTTP fixture.' );
+$assert( isset( $site_health['probes'] ) && 2 === count( $site_health['probes'] ), 'Multi-probe site-health suite did not execute the expected two probes.' );
+$assert( empty( $site_health['failed_probes'] ), 'Multi-probe site-health suite reported an unexpected failed probe.' );
+
+// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents -- Runtime mutation before recovery test.
+file_put_contents( $main_path, $version_two );
+// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents -- Runtime mutation before recovery test.
+file_put_contents( $data_path, $data_two );
+wp_clean_plugins_cache( false );
+
+$plugins = get_plugins();
+$assert( '2.0.0' === $plugins[ $fixture_file ]['Version'], 'Fixture mutation was not visible before recovery.' );
+
 $recovery_result = $recovery->execute( $fixture_file, $snapshot_uuid );
 remove_filter( 'pre_http_request', $http_mock, 10 );
 
 $assert( ! is_wp_error( $recovery_result ), 'Manual scoped recovery execution failed.' );
-$assert( 'pass' === $recovery_result['health_status'], 'Post-recovery health check did not pass under the deterministic HTTP fixture.' );
+$assert( 'pass' === $recovery_result['health_status'], 'Post-recovery health suite did not pass under the deterministic HTTP fixture.' );
 $assert( '1.0.0' === $recovery_result['to_version'], 'Recovery did not target the snapshotted plugin version.' );
 
 // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_get_contents -- Runtime recovery verification.
@@ -288,11 +367,14 @@ $assert( '1.0.0' === $plugins[ $fixture_file ]['Version'], 'Recovered plugin ver
 
 $latest_health = $health->latest();
 $assert( is_array( $latest_health ), 'Post-recovery health result was not persisted.' );
+$assert( 'site_suite' === $latest_health['check_type'], 'Post-recovery health result did not use the multi-probe site suite.' );
 $assert( 'pass' === $latest_health['status'], 'Persisted post-recovery health status is not pass.' );
-$assert( 200 === (int) $latest_health['http_code'], 'Persisted post-recovery HTTP status is not 200.' );
+$assert( 200 === (int) $latest_health['http_code'], 'Persisted post-recovery homepage HTTP status is not 200.' );
 
-$events      = $ledger->recent( 30 );
+$events      = $ledger->recent( 50 );
 $event_types = wp_list_pluck( $events, 'event_type' );
+$assert( in_array( 'guarded_batch_started', $event_types, true ), 'Guarded-batch start ledger event was not persisted.' );
+$assert( in_array( 'guarded_batch_paused', $event_types, true ), 'Guarded-batch pause ledger event was not persisted.' );
 $assert( in_array( 'recovery_started', $event_types, true ), 'Recovery-start ledger event was not persisted.' );
 $assert( in_array( 'recovery_healthy', $event_types, true ), 'Recovery-healthy ledger event was not persisted.' );
 
