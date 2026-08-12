@@ -1,6 +1,6 @@
 # RevertShield
 
-RevertShield is a local-first WordPress change-safety plugin. It records high-value maintenance events, runs health checks, creates integrity-verified plugin snapshots, executes guarded plugin updates through WordPress core APIs, and provides explicit scoped manual plugin recovery.
+RevertShield is a local-first WordPress change-safety plugin. It records high-value maintenance events, runs multi-probe health checks, creates integrity-verified plugin snapshots, executes guarded plugin updates through WordPress core APIs, and provides explicit scoped manual plugin recovery.
 
 > Development status: pre-1.0. Do not submit unfinished development snapshots to WordPress.org. Release ZIPs are produced only from release-ready code that passes the project quality gates.
 
@@ -15,7 +15,7 @@ A WordPress update can fail for many reasons, but the first operational question
 - Plugin, theme, and core upgrader event tracking.
 - Theme switch tracking.
 - Privacy-conscious tracking of selected critical option names without storing their values.
-- On-demand homepage HTTP health checks using the WordPress HTTP API.
+- On-demand local site-health suite covering the public homepage and WordPress REST API index.
 - Authorized, nonce-protected verified snapshots of installed plugin files.
 - Canonical plugin source resolution with path traversal and symlink protections.
 - SHA-256 file inventories and extensionless content-addressed snapshot storage.
@@ -23,33 +23,39 @@ A WordPress update can fail for many reasons, but the first operational question
 - Snapshot history and bounded 1-90 day retention cleanup.
 - Administrator-controlled guarded plugin updates that require a matching, unexpired, independently verified ready snapshot.
 - Update-offer revalidation immediately before execution and delegation to WordPress core `Plugin_Upgrader` APIs.
-- Post-update homepage health validation with local healthy/unhealthy ledger events.
+- Optional maintenance-window policy for guarded updates, disabled by default and enforced at execution time.
+- Pause-on-failure guarded update batches that run sequentially and stop on the first safe failure or unhealthy health result.
+- Post-update multi-probe health validation with local healthy/unhealthy ledger events.
+- Explicit recovery recommendations after unhealthy guarded updates when the exact pre-update snapshot still passes independent verification.
 - Shared WordPress-native Dashboard, Snapshots, Updates, and Recovery admin navigation.
+- RevertShield-scoped admin notice management that auto-clears transient success/info notices while preserving warning/error visibility.
 - Explicit administrator-controlled manual plugin recovery from an eligible verified snapshot.
 - Protected recovery staging and per-file SHA-256/size verification before replacement.
 - Transactional preservation of the current plugin files until exact post-restore inventory verification succeeds.
-- Post-recovery homepage health validation and local recovery ledger events.
+- Post-recovery multi-probe health validation and local recovery ledger events.
 - Short-lived serialization lock to prevent concurrent manual recoveries.
-- Real WordPress runtime regression coverage for activation, snapshot integrity, guarded-update failure-closed behavior, scoped recovery, health persistence, tamper detection, and admin rendering.
+- Real WordPress runtime regression coverage for activation, snapshot integrity, guarded-update failure-closed behavior, policy enforcement, guarded batches, scoped recovery, health persistence, tamper detection, notification management, and admin rendering.
 - Capability checks, nonces, input sanitization, output escaping, and redaction of obvious secret-like context keys.
 
-RevertShield 0.5.0 does **not** implement generic database rollback, automatic rollback after an unhealthy health result, or self-recovery of RevertShield. Supported recovery remains explicit, administrator-controlled, component-scoped, and verification-gated.
+RevertShield 0.6.0 does **not** implement generic database rollback, automatic rollback after an unhealthy health result, or self-recovery of RevertShield. Supported recovery remains explicit, administrator-controlled, component-scoped, and verification-gated.
 
 ## Architecture
 
 ```text
 revertshield.php
 src/
-  Admin/       Admin UI, navigation, settings, guarded updates, and recovery actions
+  Admin/       Admin UI, scoped notice management, settings, guarded updates, and recovery actions
   Core/        Lifecycle and service coordination
   Database/    Schema and table names
-  Health/      Health probes and results
+  Health/      Local health probes and aggregate results
   Ledger/      Change and recovery event persistence
+  Policy/      Maintenance-window policy
   Recovery/    Recovery eligibility and scoped plugin-file restore execution
   Snapshot/    Snapshot inventory, storage, lifecycle, and verification
   Support/     Retention and housekeeping
-  Update/      Guarded update eligibility and execution
+  Update/      Guarded update eligibility, execution, and pause-on-failure batches
 assets/        Shipped admin assets
+  js/          RevertShield-scoped notice manager
 docs/          Architecture, roadmap, release checklist
 tests/         Real WordPress runtime smoke and regression assertions
 .github/       CI, runtime matrix, and WordPress Plugin Check workflow
@@ -73,7 +79,7 @@ Pull requests and release candidates are expected to pass:
 - Official WordPress Plugin Check against the built distribution directory.
 - Release allowlist packaging so development-only files are never shipped accidentally.
 
-The runtime matrix installs WordPress, activates the built RevertShield package, creates and verifies a fixture snapshot, proves guarded-update and recovery gates fail closed, performs a real scoped fixture recovery, checks health and ledger persistence, verifies tamper rejection, and smoke-renders the administrator screens.
+The runtime matrix installs WordPress, activates the built RevertShield package, creates and verifies a fixture snapshot, proves guarded-update and recovery gates fail closed, validates maintenance-window policy and batch pause behavior, performs a real scoped fixture recovery, checks multi-probe health and ledger persistence, verifies tamper rejection, and smoke-renders the administrator screens.
 
 ## WordPress.org policy
 
