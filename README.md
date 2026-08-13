@@ -23,7 +23,10 @@ A WordPress update can fail for many reasons, but the first operational question
 - SHA-256 file inventories and extensionless content-addressed snapshot storage.
 - Independent snapshot verification before a snapshot is treated as ready.
 - Snapshot history and bounded 1-90 day retention cleanup.
-- Administrator-controlled guarded plugin updates that require a matching, unexpired, independently verified ready snapshot.
+- Explicit site/network ownership metadata for newly created Multisite snapshots.
+- Explicit per-site Multisite snapshot storage namespaces and cross-site/network verification rejection.
+- Per-site schema, defaults, and cleanup-schedule provisioning for network-activated and newly initialized Multisite sites.
+- Administrator-controlled guarded plugin updates that require a matching, unexpired, independently verified ready snapshot on supported single-site installations.
 - Update-offer revalidation immediately before execution and delegation to WordPress core `Plugin_Upgrader` APIs.
 - Optional maintenance-window policy for guarded updates, disabled by default and enforced at execution time.
 - Pause-on-failure guarded update batches that run sequentially and stop on the first safe failure or unhealthy health result.
@@ -31,16 +34,18 @@ A WordPress update can fail for many reasons, but the first operational question
 - Explicit recovery recommendations after unhealthy guarded updates when the exact pre-update snapshot still passes independent verification.
 - Shared WordPress-native Dashboard, Snapshots, Updates, and Recovery admin navigation.
 - RevertShield-scoped admin notice management that auto-clears transient success/info notices while preserving warning/error visibility.
-- Explicit administrator-controlled manual plugin recovery from an eligible verified snapshot.
+- Explicit administrator-controlled manual plugin recovery from an eligible verified snapshot on supported single-site installations.
 - Protected recovery staging and per-file SHA-256/size verification before replacement.
 - Transactional preservation of the current plugin files until exact post-restore inventory verification succeeds.
 - Post-recovery multi-probe health validation and local recovery ledger events.
 - Short-lived serialization lock to prevent concurrent manual recoveries.
-- Real WordPress runtime regression coverage for activation, snapshot integrity, guarded-update failure-closed behavior, policy enforcement, guarded batches, scoped recovery, health persistence, tamper detection, notification management, WooCommerce health integration, and admin rendering.
+- Multisite safety mode that keeps observation and snapshots site-scoped while guarded plugin updates and plugin-file recovery fail closed until bounded network-wide health validation exists.
+- Safe Multisite uninstall behavior that retains site data until an explicit bounded network-wide deletion policy exists.
+- Real WordPress runtime regression coverage for activation, snapshot integrity, guarded-update failure-closed behavior, policy enforcement, guarded batches, scoped recovery, health persistence, tamper detection, notification management, WooCommerce health integration, Multisite safety boundaries, and admin rendering.
 - Real current WooCommerce install/activation and Store API integration coverage on the latest supported WordPress/PHP runtime boundary.
 - Capability checks, nonces, input sanitization, output escaping, and redaction of obvious secret-like context keys.
 
-RevertShield 0.7.0 does **not** implement generic database rollback, automatic rollback after an unhealthy health result, or self-recovery of RevertShield. Supported recovery remains explicit, administrator-controlled, component-scoped, and verification-gated.
+RevertShield 0.8.0 does **not** implement generic database rollback, automatic rollback after an unhealthy health result, or self-recovery of RevertShield. Supported recovery remains explicit, administrator-controlled, component-scoped, and verification-gated. On WordPress Multisite, installed plugin files are shared network-wide, so guarded plugin updates and plugin-file recovery intentionally fail closed until RevertShield has bounded network-wide post-change health validation.
 
 ## Architecture
 
@@ -55,16 +60,16 @@ src/
   Policy/      Maintenance-window policy
   Recovery/    Recovery eligibility and scoped plugin-file restore execution
   Snapshot/    Snapshot inventory, storage, lifecycle, and verification
-  Support/     Retention and housekeeping
+  Support/     Site/network context, Multisite provisioning, retention, and housekeeping
   Update/      Guarded update eligibility, execution, and pause-on-failure batches
 assets/        Shipped admin assets
   js/          RevertShield-scoped notice manager
 docs/          Architecture, roadmap, release checklist
-tests/         Real WordPress runtime smoke, regression, and ecosystem integration assertions
+tests/         Real WordPress runtime smoke, regression, Multisite, and ecosystem integration assertions
 .github/       CI, runtime matrix, and WordPress Plugin Check workflow
 ```
 
-Recovery is intentionally component-aware. RevertShield does not implement generic SQL reversal. A supported recovery operation must know which component changed, what was snapshotted, whether the snapshot is intact, whether it belongs to the target component, and whether the restored files exactly match the verified manifest.
+Recovery is intentionally component-aware. RevertShield does not implement generic SQL reversal. A supported recovery operation must know which component changed, what was snapshotted, whether the snapshot is intact, whether it belongs to the target component and current site context, and whether the restored files exactly match the verified manifest.
 
 The WooCommerce health adapter is intentionally read-only. It uses the customer-facing Store API product collection only when WooCommerce is already active and does not access orders, customers, payments, carts, checkout mutation endpoints, API credentials, or external services.
 
@@ -81,11 +86,12 @@ Pull requests and release candidates are expected to pass:
 - PHP syntax checks across supported PHP versions.
 - WordPress Coding Standards via PHPCS.
 - Real WordPress runtime smoke and regression tests on the minimum supported boundary and the latest supported boundary.
+- Real WordPress Multisite safety regression tests on the minimum supported boundary and the latest supported boundary.
 - Real current WooCommerce activation and Store API integration coverage on the latest supported boundary for releases that change the WooCommerce adapter.
-- Official WordPress Plugin Check against the built distribution directory.
+- Official WordPress Plugin Check against the built distribution package.
 - Release allowlist packaging so development-only files are never shipped accidentally.
 
-The runtime matrix installs WordPress, activates the built RevertShield package, creates and verifies a fixture snapshot, proves guarded-update and recovery gates fail closed, validates maintenance-window policy and batch pause behavior, performs a real scoped fixture recovery, checks multi-probe health and ledger persistence, verifies tamper rejection, and smoke-renders the administrator screens. The latest runtime boundary also installs and activates the current WooCommerce release and validates the real public Store API route used by the optional health adapter.
+The runtime matrix installs WordPress, activates the built RevertShield package, creates and verifies a fixture snapshot, proves guarded-update and recovery gates fail closed, validates maintenance-window policy and batch pause behavior, performs a real scoped fixture recovery, checks multi-probe health and ledger persistence, verifies tamper rejection, and smoke-renders the administrator screens. The Multisite matrix verifies per-site provisioning, storage isolation, snapshot ownership, cross-site rejection, and shared-plugin-file mutation fail-closed behavior. The latest runtime boundary also installs and activates the current WooCommerce release and validates the real public Store API route used by the optional health adapter.
 
 ## WordPress.org policy
 
