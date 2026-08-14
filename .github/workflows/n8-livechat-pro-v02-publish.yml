@@ -48,7 +48,8 @@ jobs:
           node --check n8-livechat-pro/assets/js/widget.js
 
       - name: Verify release version
-        run: grep -F 'Version:     0.2.0' n8-livechat-pro/n8-livechat-pro.php
+        run: |
+          grep -F 'Version:     0.2.0' n8-livechat-pro/n8-livechat-pro.php
 
       - name: Commit expanded source and ZIP
         run: |
