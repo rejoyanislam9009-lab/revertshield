@@ -3,7 +3,7 @@ Contributors: n8
 Requires at least: 6.5
 Tested up to: 7.0
 Requires PHP: 7.4
-Stable tag: 0.4.0
+Stable tag: 0.4.1
 License: GPLv2 or later
 
 Professional WordPress live chat and support operations with team roles, routing, attachments, typing, custom fields, knowledge, SLA, CSAT, privacy tools, analytics, audit/export and signed integrations.
@@ -37,6 +37,13 @@ No. Generic CRM/n8n/custom integration delivery only occurs after an administrat
 The plugin enforces its upload allowlist and size controls but does not bundle a malware engine. Security products can integrate through the `n8lc_validate_upload` hook.
 
 == Changelog ==
+
+= 0.4.1 =
+* Recovery-safe bootstrap: runtime module failures no longer take down wp-admin.
+* Activation failures automatically deactivate the plugin while preserving data.
+* Platform schema/runtime failures are recovery-guarded, and repeated public retries are suppressed after a failure.
+* Added PHP/WordPress requirement guard and persistent admin recovery diagnostics.
+
 = 0.4.0 =
 * Added N8 LiveChat Manager access and administrator-controlled Agent/Manager onboarding for existing WordPress users.
 * Added agent profiles with workload, availability, languages, skills, avatar and notification preferences.
