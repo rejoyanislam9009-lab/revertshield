@@ -3,7 +3,7 @@ Tags: maintenance, updates, debugging, health check, activity log
 Requires at least: 6.5
 Tested up to: 7.0
 Requires PHP: 7.4
-Stable tag: 0.8.0
+Stable tag: 0.9.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -26,6 +26,10 @@ The current release provides a local-first operational safety layer:
 * Stores snapshot contents as extensionless, SHA-256-addressed objects under the WordPress uploads directory.
 * Re-verifies stored snapshot manifests and object hashes before treating a snapshot as ready.
 * Provides snapshot history and configurable 1-90 day snapshot retention with bounded cleanup.
+* Lets authorized administrators pin selected stored snapshots so their original expiration is suspended until they are explicitly unpinned.
+* Provides an Operations screen for protected snapshots and optional scheduled local health checks.
+* Supports scheduled local health checks every 1, 6, 12, or 24 hours through WordPress Cron, disabled by default.
+* Provides read-only WP-CLI status, health-history, snapshot-list, snapshot-inspection, and optional snapshot-integrity verification commands.
 * On Multisite, binds new snapshot manifests to the current site and network and stores snapshots in explicit per-site namespaces.
 * On Multisite, rejects snapshot verification when site or network ownership does not match the current context.
 * Provides per-site schema, settings, and cleanup-schedule provisioning for network-activated and newly initialized Multisite sites.
@@ -37,7 +41,7 @@ The current release provides a local-first operational safety layer:
 * Supports an optional administrator-configured maintenance window for guarded update execution. The policy is disabled by default.
 * Supports bounded pause-on-failure guarded update batches. Updates run sequentially and the batch stops on the first safe failure or unhealthy health result.
 * Can recommend the exact independently reverified pre-update snapshot for manual review after an unhealthy guarded update, without starting recovery automatically.
-* Provides WordPress-native Dashboard, Snapshots, Updates, and Recovery navigation across RevertShield admin screens.
+* Provides WordPress-native Dashboard, Snapshots, Updates, Recovery, and Operations navigation across RevertShield admin screens.
 * Provides a RevertShield-scoped notification center on RevertShield admin screens so transient success and informational notices do not remain piled around the page header.
 * Auto-clears transient success and informational notices after a short delay while keeping warning and error notices visible until dismissed.
 * Provides explicit administrator-controlled manual plugin recovery from a matching, unexpired, independently verified ready snapshot on supported single-site installations.
@@ -46,10 +50,10 @@ The current release provides a local-first operational safety layer:
 * Runs the multi-probe site-health suite after successful manual recovery and records healthy or unhealthy outcomes locally.
 * Prevents concurrent manual recovery operations with a short-lived recovery lock.
 * On Multisite, intentionally disables guarded plugin updates and plugin-file recovery because installed plugin files are shared network-wide while current health validation is site-scoped.
-* Includes automated real-WordPress runtime regression coverage for bootstrap, snapshot integrity, guarded-update safety gates, policy enforcement, scoped recovery, health persistence, tamper detection, WooCommerce health integration, Multisite safety boundaries, and admin rendering.
+* Includes automated real-WordPress runtime regression coverage for bootstrap, snapshot integrity, guarded-update safety gates, policy enforcement, scoped recovery, health persistence, tamper detection, WooCommerce health integration, Multisite safety boundaries, operations controls, WP-CLI inspection, lifecycle behavior, and stable-version upgrades.
 * Sends no telemetry and requires no external account.
 
-RevertShield 0.8.0 keeps supported recovery explicit, administrator-controlled, component-scoped, and verification-gated. On Multisite, snapshots and observation remain site-scoped while guarded plugin updates and plugin-file recovery intentionally fail closed until bounded network-wide health validation is available. It does not perform generic database rollback, does not restore RevertShield itself, and does not automatically roll back or restore after an unhealthy health result.
+RevertShield 0.9.0 keeps supported recovery explicit, administrator-controlled, component-scoped, and verification-gated while adding local operational visibility and retention protection. Scheduled health checks are opt-in and remain local, and WP-CLI is read-only in this release. On Multisite, snapshots and observation remain site-scoped while guarded plugin updates and plugin-file recovery intentionally fail closed until bounded network-wide health validation is available. It does not perform generic database rollback, does not restore RevertShield itself, and does not automatically roll back or restore after an unhealthy health result.
 
 == Installation ==
 
@@ -59,12 +63,13 @@ RevertShield 0.8.0 keeps supported recovery explicit, administrator-controlled, 
 4. Open Tools > RevertShield Snapshots to create and review verified plugin snapshots.
 5. Open Tools > RevertShield Updates to run an eligible guarded plugin update or pause-on-failure guarded batch when WordPress reports available updates.
 6. Open Tools > RevertShield Recovery to manually restore an eligible plugin snapshot after reviewing the confirmation warning.
+7. Open Tools > RevertShield Operations to pin important snapshots or configure optional scheduled local health checks.
 
 == Frequently Asked Questions ==
 
 = Does RevertShield send site data to an external service? =
 
-No. The current release stores its ledger, health-check results, snapshot metadata, policy settings, and recovery records on the site's own WordPress installation and includes no telemetry.
+No. The current release stores its ledger, health-check results, snapshot metadata, policy settings, scheduled-health settings, and recovery records on the site's own WordPress installation and includes no telemetry.
 
 = Does RevertShield store WordPress option values? =
 
@@ -74,13 +79,25 @@ The built-in critical-option observer stores option names only. It does not stor
 
 Snapshot objects are stored below the site's WordPress uploads directory in a RevertShield-managed path. Original executable plugin filenames are not copied into uploads; file bytes are stored as extensionless SHA-256-addressed objects with integrity manifests and verification checks. On Multisite, RevertShield adds an explicit current-site namespace and stores site/network ownership in new snapshot manifests.
 
+= What does pinning a snapshot do? =
+
+Pinning suspends that snapshot's original expiration timestamp so normal retention cleanup cannot select it. RevertShield stores the original expiration separately in the current site's local settings registry and restores it when the snapshot is unpinned. Pinning does not rewrite the snapshot manifest or stored snapshot objects.
+
 = What does the site-health suite check? =
 
 RevertShield always checks the site's public homepage and WordPress REST API index through the WordPress HTTP API. When WooCommerce is active, it also performs a bounded read-only request against the public WooCommerce Store API product collection. All applicable probes must pass for the aggregate site-health result to pass. RevertShield does not use WooCommerce API credentials and does not read orders, customers, payments, carts, or checkout data for this probe.
 
+= How do scheduled health checks work? =
+
+Scheduled health checks are disabled by default. An administrator can enable a 1, 6, 12, or 24 hour WordPress Cron cadence from RevertShield Operations. The scheduled job runs the same local site-health suite used elsewhere in RevertShield and stores only the existing bounded local health result. Disabling or deactivating RevertShield removes the scheduled event.
+
+= What WP-CLI commands are available? =
+
+Version 0.9.0 provides read-only commands for operational status, the latest persisted health result, recent snapshot metadata, and inspection of one snapshot. Snapshot inspection can optionally perform the same read-only manifest and object verification used by RevertShield. WP-CLI does not run guarded updates, recovery, pinning, unpinning, or other destructive mutations in this release.
+
 = How does a guarded plugin update work? =
 
-On supported single-site installations, RevertShield only shows plugin updates currently reported by WordPress. Before an update can run, an authorized administrator must select a matching ready snapshot. RevertShield independently verifies the snapshot again, checks the optional maintenance-window policy, confirms that the update offer still exists, and then delegates the update to WordPress core's plugin upgrader. Afterward, RevertShield runs the site-health suite, including applicable ecosystem probes, and records the result locally. On Multisite in version 0.8.0, guarded plugin updates intentionally fail closed because installed plugin files are network-shared while current post-change health validation is site-scoped.
+On supported single-site installations, RevertShield only shows plugin updates currently reported by WordPress. Before an update can run, an authorized administrator must select a matching ready snapshot. RevertShield independently verifies the snapshot again, checks the optional maintenance-window policy, confirms that the update offer still exists, and then delegates the update to WordPress core's plugin upgrader. Afterward, RevertShield runs the site-health suite, including applicable ecosystem probes, and records the result locally. On Multisite in version 0.9.0, guarded plugin updates intentionally fail closed because installed plugin files are network-shared while current post-change health validation is site-scoped.
 
 = How do guarded update batches work? =
 
@@ -96,17 +113,27 @@ Transient success and informational notices on RevertShield screens are collecte
 
 = How does manual plugin recovery work? =
 
-On supported single-site installations, an authorized administrator explicitly selects an eligible ready snapshot and confirms the recovery action. RevertShield verifies the snapshot again, stages and verifies its files, preserves the current plugin files during the transaction, replaces only that plugin's files, verifies the restored inventory exactly, and then runs the multi-probe site-health suite. RevertShield itself is excluded from manual self-recovery in this release. On Multisite in version 0.8.0, plugin-file recovery intentionally fails closed because plugin files are network-shared while current health validation is site-scoped.
+On supported single-site installations, an authorized administrator explicitly selects an eligible ready snapshot and confirms the recovery action. RevertShield verifies the snapshot again, stages and verifies its files, preserves the current plugin files during the transaction, replaces only that plugin's files, verifies the restored inventory exactly, and then runs the multi-probe site-health suite. RevertShield itself is excluded from manual self-recovery in this release. On Multisite in version 0.9.0, plugin-file recovery intentionally fails closed because plugin files are network-shared while current health validation is site-scoped.
 
 = Does RevertShield automatically roll back an unhealthy update or recovery? =
 
-No. Version 0.8.0 provides explicit manual plugin recovery on single-site WordPress, not automatic rollback. On Multisite, plugin-file recovery is intentionally deferred because plugin files are shared network-wide while current health validation is site-scoped. If a post-update or post-recovery health result is unhealthy, RevertShield records the result and stops or pauses the current batch. It does not perform a generic database rollback or automatically start another restore.
+No. Version 0.9.0 provides explicit manual plugin recovery on single-site WordPress, not automatic rollback. On Multisite, plugin-file recovery is intentionally deferred because plugin files are shared network-wide while current health validation is site-scoped. If a post-update or post-recovery health result is unhealthy, RevertShield records the result and stops or pauses the current batch. It does not perform a generic database rollback or automatically start another restore.
 
 = Does uninstall remove RevertShield data? =
 
-Not by default. On single-site WordPress, enable the delete-on-uninstall setting before uninstalling if you want RevertShield's local tables, settings, and managed snapshot storage removed. On Multisite, uninstall retains RevertShield data until a bounded network-wide deletion policy exists.
+Not by default. On single-site WordPress, enable the delete-on-uninstall setting before uninstalling if you want RevertShield's local tables, settings, protected-snapshot registry, and managed snapshot storage removed. On Multisite, uninstall retains RevertShield data until a bounded network-wide deletion policy exists.
 
 == Changelog ==
+
+= 0.9.0 =
+* Added an Operations & Observability admin screen without changing the existing guarded-update or recovery execution paths.
+* Added administrator-controlled snapshot pin/protect state that suspends the selected snapshot's original expiration until explicitly unpinned.
+* Kept pinned snapshot manifests and content-addressed objects immutable while storing original expiration metadata in a site-scoped non-autoloaded registry.
+* Added optional scheduled local site-health checks through WordPress Cron with bounded 1, 6, 12, or 24 hour cadences, disabled by default.
+* Added automatic scheduled-health cleanup on deactivation and opted-in single-site uninstall.
+* Added read-only WP-CLI commands for status, persisted health state, recent snapshots, snapshot inspection, and optional snapshot-integrity verification.
+* Kept guarded update, recovery, pin/unpin, REST mutation, generic database rollback, automatic rollback, telemetry, and remote executable code unavailable through WP-CLI.
+* Added minimum/latest real WordPress operations regression coverage and a stable 0.8.0 to 0.9.0 in-place upgrade gate.
 
 = 0.8.0 =
 * Added explicit current site and network context for Multisite snapshot ownership decisions.
