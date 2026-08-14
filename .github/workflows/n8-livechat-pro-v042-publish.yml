@@ -21,9 +21,47 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Apply admin runtime hotfix
+      - name: Apply exact admin runtime hotfix
         run: |
-          patch -p1 --forward < dist/v042-admin-runtime-fix.patch
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path, old, new):
+              p = Path(path)
+              text = p.read_text()
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{path}: expected exactly one match, found {count}')
+              p.write_text(text.replace(old, new, 1))
+
+          replace_once(
+              'n8-livechat-pro/includes/class-n8lc-admin.php',
+              "        foreach ( get_users( array( 'fields' => array( 'ID', 'display_name', 'user_email' ) ) ) as $user ) {\n            if ( user_can( $user, 'n8lc_reply_chat' ) || user_can( $user, 'manage_options' ) ) {",
+              "        foreach ( get_users( array( 'fields' => 'all' ) ) as $user ) {\n            if ( ! ( $user instanceof WP_User ) ) {\n                continue;\n            }\n            if ( user_can( $user, 'n8lc_reply_chat' ) || user_can( $user, 'manage_options' ) ) {",
+          )
+
+          replace_once(
+              'n8-livechat-pro/includes/class-n8lc-platform.php',
+              "        $users = get_users( array( 'fields' => array( 'ID', 'display_name', 'user_email', 'roles' ) ) );\n        $items = array();\n        $can_onboard = current_user_can( 'manage_options' );\n        foreach ( $users as $user ) {",
+              "        $users = get_users( array( 'fields' => 'all' ) );\n        $items = array();\n        $can_onboard = current_user_can( 'manage_options' );\n        foreach ( $users as $user ) {\n            if ( ! ( $user instanceof WP_User ) ) {\n                continue;\n            }",
+          )
+
+          replace_once('n8-livechat-pro/n8-livechat-pro.php', ' * Version:     0.4.1', ' * Version:     0.4.2')
+          replace_once("n8-livechat-pro/n8-livechat-pro.php", "define( 'N8LC_VERSION', '0.4.1' );", "define( 'N8LC_VERSION', '0.4.2' );")
+          replace_once('n8-livechat-pro/readme.txt', 'Stable tag: 0.4.1', 'Stable tag: 0.4.2')
+          replace_once('n8-livechat-pro/README.md', '# N8 LiveChat Pro 0.4.1', '# N8 LiveChat Pro 0.4.2')
+          replace_once('n8-livechat-pro/README.md', 'Version 0.4.1 preserves', 'Version 0.4.2 preserves')
+          replace_once('n8-livechat-pro/README.md', 'n8-livechat-pro-0.4.1.zip', 'n8-livechat-pro-0.4.2.zip')
+
+          readme = Path('n8-livechat-pro/readme.txt')
+          text = readme.read_text()
+          marker = '== Changelog ==\n'
+          entry = "= 0.4.2 =\n* Fixed a WordPress admin fatal caused by passing partial stdClass user-query rows into user_can().\n* LiveChat dashboard, inbox, settings, team and platform pages now request full WP_User objects before capability checks.\n* Added an admin-runtime regression gate to prevent this capability-check crash from returning.\n\n"
+          if '= 0.4.2 =' not in text:
+              if marker not in text:
+                  raise SystemExit('readme changelog marker missing')
+              readme.write_text(text.replace(marker, marker + entry, 1))
+          PY
 
       - name: Verify WordPress user object regression fix
         run: |
