@@ -1,8 +1,8 @@
-# N8 LiveChat Pro 0.2.0
+# N8 LiveChat Pro 0.3.0
 
-N8 LiveChat Pro is a standalone WordPress live chat and support-inbox plugin. Version 0.2.0 keeps the v0.1 visitor chat, agent inbox, departments, canned replies, visitors and analytics, then adds higher-functionality support operations.
+N8 LiveChat Pro is a standalone WordPress live chat and support-inbox plugin. Version 0.3.0 keeps the v0.1 visitor chat, agent inbox, departments, canned replies, visitors and analytics, then adds higher-functionality support operations.
 
-## Included in v0.2.0
+## Included in v0.3.0
 
 ### Visitor chat
 - Responsive floating chat widget.
@@ -65,8 +65,19 @@ N8 LiveChat Pro is a standalone WordPress live chat and support-inbox plugin. Ve
 - Private notes never appear in visitor message APIs.
 - Conservative uninstall: data is preserved unless the administrator explicitly enables deletion.
 
+## Visual customizer (v0.3)
+- 8 selectable inline-SVG launcher icons: message, chat, headset, support, sparkle, bot, phone and mail.
+- Circle, rounded-square and pill launchers with optional text label.
+- Indigo, ocean, emerald, violet, rose, sunset, midnight and custom color themes.
+- Greeting teaser bubble with configurable delay and auto-hide.
+- Support avatar/name, response-time subtitle and online/away presence.
+- Configurable launcher size, panel width/height and corner radius.
+- Pulse, float, glow or no animation.
+- Unread badge, optional Web Audio reply chime and improved mobile full-screen layout.
+- Dedicated WordPress visual customizer with a live website preview.
+
 ## Installation
-1. Download `n8-livechat-pro-0.2.0.zip`.
+1. Download `n8-livechat-pro-0.3.0.zip`.
 2. In WordPress go to **Plugins -> Add New Plugin -> Upload Plugin**.
 3. Upload the ZIP and activate **N8 LiveChat Pro**.
 4. Open **N8 LiveChat -> Settings** and configure the widget.
