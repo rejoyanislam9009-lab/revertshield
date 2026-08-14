@@ -33,15 +33,15 @@ final class Settings {
 				'type'              => 'array',
 				'sanitize_callback' => array( $this, 'sanitize' ),
 				'default'           => array(
-					'retention_days'            => 90,
-					'snapshot_retention_days'   => 7,
-					'log_option_names'          => 1,
-					'delete_on_uninstall'       => 0,
+					'retention_days'             => 90,
+					'snapshot_retention_days'    => 7,
+					'log_option_names'           => 1,
+					'delete_on_uninstall'        => 0,
 					'maintenance_window_enabled' => 0,
-					'maintenance_window_start'  => '02:00',
-					'maintenance_window_end'    => '05:00',
-					'scheduled_health_enabled'  => 0,
-					'scheduled_health_interval' => 24,
+					'maintenance_window_start'   => '02:00',
+					'maintenance_window_end'     => '05:00',
+					'scheduled_health_enabled'   => 0,
+					'scheduled_health_interval'  => 24,
 				),
 			)
 		);
