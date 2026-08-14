@@ -73,13 +73,34 @@ final class Commands {
 		$schedule = ScheduledHealthCheck::status();
 		$format   = $this->format( $assoc_args );
 		$rows     = array(
-			array( 'field' => 'version', 'value' => REVERTSHIELD_VERSION ),
-			array( 'field' => 'multisite', 'value' => is_multisite() ? 'yes' : 'no' ),
-			array( 'field' => 'latest_health', 'value' => $latest && isset( $latest['status'] ) ? sanitize_key( $latest['status'] ) : 'none' ),
-			array( 'field' => 'snapshots', 'value' => (string) $this->snapshots->count() ),
-			array( 'field' => 'pinned_snapshots', 'value' => (string) $this->pins->count() ),
-			array( 'field' => 'scheduled_health', 'value' => ! empty( $schedule['enabled'] ) ? 'enabled' : 'disabled' ),
-			array( 'field' => 'scheduled_health_hours', 'value' => (string) absint( $schedule['interval'] ) ),
+			array(
+				'field' => 'version',
+				'value' => REVERTSHIELD_VERSION,
+			),
+			array(
+				'field' => 'multisite',
+				'value' => is_multisite() ? 'yes' : 'no',
+			),
+			array(
+				'field' => 'latest_health',
+				'value' => $latest && isset( $latest['status'] ) ? sanitize_key( $latest['status'] ) : 'none',
+			),
+			array(
+				'field' => 'snapshots',
+				'value' => (string) $this->snapshots->count(),
+			),
+			array(
+				'field' => 'pinned_snapshots',
+				'value' => (string) $this->pins->count(),
+			),
+			array(
+				'field' => 'scheduled_health',
+				'value' => ! empty( $schedule['enabled'] ) ? 'enabled' : 'disabled',
+			),
+			array(
+				'field' => 'scheduled_health_hours',
+				'value' => (string) absint( $schedule['interval'] ),
+			),
 		);
 
 		\WP_CLI\Utils\format_items( $format, $rows, array( 'field', 'value' ) );
@@ -101,7 +122,7 @@ final class Commands {
 		unset( $args );
 		$latest = $this->health->latest();
 		if ( ! $latest ) {
-			\WP_CLI::warning( 'No persisted RevertShield health result exists yet.' );
+			\WP_CLI::warning( __( 'No persisted RevertShield health result exists yet.', 'revertshield' ) );
 			return;
 		}
 
@@ -178,12 +199,12 @@ final class Commands {
 	public function snapshot( $args, $assoc_args ) {
 		$uuid = isset( $args[0] ) ? sanitize_text_field( $args[0] ) : '';
 		if ( '' === $uuid ) {
-			\WP_CLI::error( 'A snapshot UUID is required.' );
+			\WP_CLI::error( __( 'A snapshot UUID is required.', 'revertshield' ) );
 		}
 
 		$snapshot = $this->snapshots->find( $uuid );
 		if ( ! $snapshot ) {
-			\WP_CLI::error( 'Snapshot not found.' );
+			\WP_CLI::error( __( 'Snapshot not found.', 'revertshield' ) );
 		}
 
 		$row = array(
