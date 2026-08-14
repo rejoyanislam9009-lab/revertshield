@@ -1,0 +1,80 @@
+name: N8 LiveChat Pro v0.4.3 Frontend Visibility Fix
+
+on:
+  push:
+    branches:
+      - feature/n8-livechat-pro-v0.4.3
+    paths:
+      - 'n8-livechat-pro/**'
+      - '.github/workflows/n8-livechat-pro-v043-ci.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  validate-and-package:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout v0.4.3 branch
+        uses: actions/checkout@v4
+
+      - name: Verify frontend mount regression fix
+        run: |
+          grep -F 'Version:     0.4.3' n8-livechat-pro/n8-livechat-pro.php
+          grep -F "define( 'N8LC_VERSION', '0.4.3' );" n8-livechat-pro/n8-livechat-pro.php
+          grep -F 'Stable tag: 0.4.3' n8-livechat-pro/readme.txt
+          grep -F "add_action( 'wp_body_open', array( \$this, 'render' ), 5 );" n8-livechat-pro/includes/class-n8lc-widget.php
+          grep -F "add_action( 'wp_footer', array( \$this, 'render' ), 5 );" n8-livechat-pro/includes/class-n8lc-widget.php
+          grep -F 'private static $rendered = false;' n8-livechat-pro/includes/class-n8lc-widget.php
+          ! grep -F "add_action( 'wp_footer', array( \$this, 'render' ), 99 );" n8-livechat-pro/includes/class-n8lc-widget.php
+
+      - name: Setup PHP 7.4
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '7.4'
+          coverage: none
+
+      - name: PHP 7.4 syntax gate
+        run: find n8-livechat-pro -type f -name '*.php' -print0 | xargs -0 -n1 php -l
+
+      - name: Setup PHP 8.4
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          coverage: none
+
+      - name: PHP 8.4 syntax gate
+        run: find n8-livechat-pro -type f -name '*.php' -print0 | xargs -0 -n1 php -l
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: JavaScript syntax gate
+        run: find n8-livechat-pro/assets/js -type f -name '*.js' -print0 | xargs -0 -n1 node --check
+
+      - name: Build and verify installable ZIP
+        run: |
+          rm -f dist/n8-livechat-pro-0.4.3.zip dist/n8-livechat-pro-0.4.3.sha256
+          zip -qr dist/n8-livechat-pro-0.4.3.zip n8-livechat-pro -x '*/.DS_Store'
+          sha256sum dist/n8-livechat-pro-0.4.3.zip > dist/n8-livechat-pro-0.4.3.sha256
+          unzip -t dist/n8-livechat-pro-0.4.3.zip
+
+      - name: Upload verified release artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: n8-livechat-pro-0.4.3
+          path: |
+            dist/n8-livechat-pro-0.4.3.zip
+            dist/n8-livechat-pro-0.4.3.sha256
+          if-no-files-found: error
+
+      - name: Publish verified package to branch
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add dist/n8-livechat-pro-0.4.3.zip dist/n8-livechat-pro-0.4.3.sha256
+          git commit -m 'Publish N8 LiveChat Pro 0.4.3 frontend visibility fix'
+          git push
