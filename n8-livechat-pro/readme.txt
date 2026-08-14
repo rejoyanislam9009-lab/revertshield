@@ -3,7 +3,7 @@ Contributors: n8
 Requires at least: 6.5
 Tested up to: 7.0
 Requires PHP: 7.4
-Stable tag: 0.4.2
+Stable tag: 0.4.3
 License: GPLv2 or later
 
 Professional WordPress live chat and support operations with team roles, routing, attachments, typing, custom fields, knowledge, SLA, CSAT, privacy tools, analytics, audit/export and signed integrations.
@@ -37,11 +37,15 @@ No. Generic CRM/n8n/custom integration delivery only occurs after an administrat
 The plugin enforces its upload allowlist and size controls but does not bundle a malware engine. Security products can integrate through the `n8lc_validate_upload` hook.
 
 == Changelog ==
+= 0.4.3 =
+* Fixed the frontend launcher not appearing because the widget mount was rendered after footer JavaScript executed.
+* The widget mount now renders on wp_body_open when available with an early wp_footer fallback.
+* Added duplicate-render protection so themes firing both hooks still output exactly one widget root.
+
 = 0.4.2 =
 * Fixed a WordPress admin fatal caused by passing partial stdClass user-query rows into user_can().
 * LiveChat dashboard, inbox, settings, team and platform pages now request full WP_User objects before capability checks.
 * Added an admin-runtime regression gate to prevent this capability-check crash from returning.
-
 
 = 0.4.1 =
 * Recovery-safe bootstrap: runtime module failures no longer take down wp-admin.
