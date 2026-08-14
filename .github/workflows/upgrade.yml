@@ -1,0 +1,87 @@
+name: Stable upgrade gates
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: revertshield-upgrade-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  stable-upgrade:
+    name: WordPress ${{ matrix.wordpress }} / PHP ${{ matrix.php }} 0.7.0 to 0.8.0 upgrade
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - wordpress: '6.5'
+            php: '7.4'
+          - wordpress: 'latest'
+            php: '8.4'
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          coverage: none
+          tools: wp-cli
+      - name: Build current 0.8.0 package
+        run: |
+          set -euo pipefail
+          test "$(grep -m1 '^ \* Version:' revertshield.php | awk '{print $3}')" = "0.8.0"
+          chmod +x ./bin/build-release.sh
+          ./bin/build-release.sh /tmp/revertshield-0.8.0.zip
+      - name: Build previous stable 0.7.0 package
+        run: |
+          set -euo pipefail
+          previous=867a08b908d4fc7394aa4db205b7e022f49f4e6d
+          test "$(git show "${previous}:revertshield.php" | grep -m1 '^ \* Version:' | awk '{print $3}')" = "0.7.0"
+          git worktree add --detach /tmp/revertshield-0.7.0 "$previous"
+          chmod +x /tmp/revertshield-0.7.0/bin/build-release.sh
+          /tmp/revertshield-0.7.0/bin/build-release.sh /tmp/revertshield-0.7.0.zip
+      - name: Install WordPress
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/revertshield-upgrade-wp
+          wp core download --path=/tmp/revertshield-upgrade-wp --version="${{ matrix.wordpress }}" --force
+          wp config create --path=/tmp/revertshield-upgrade-wp --dbname=revertshield_upgrade_test --dbuser=root --dbpass=root --dbhost=127.0.0.1:3306 --skip-check
+          wp db create --path=/tmp/revertshield-upgrade-wp
+          wp core install --path=/tmp/revertshield-upgrade-wp --url=http://revertshield.test --title="RevertShield Upgrade Test" --admin_user=admin --admin_password=test-password --admin_email=test@example.com --skip-email
+      - name: Install and activate previous stable 0.7.0
+        run: |
+          set -euo pipefail
+          unzip -q /tmp/revertshield-0.7.0.zip -d /tmp/revertshield-upgrade-wp/wp-content/plugins
+          wp plugin activate revertshield --path=/tmp/revertshield-upgrade-wp
+          wp plugin is-active revertshield --path=/tmp/revertshield-upgrade-wp
+          test "$(wp plugin get revertshield --field=version --path=/tmp/revertshield-upgrade-wp)" = "0.7.0"
+          wp option update revertshield_upgrade_probe preserved --path=/tmp/revertshield-upgrade-wp
+          wp eval 'if (!defined("REVERTSHIELD_VERSION") || "0.7.0" !== REVERTSHIELD_VERSION) { throw new RuntimeException("Previous stable did not boot as 0.7.0."); }' --path=/tmp/revertshield-upgrade-wp
+      - name: Upgrade in place to current 0.8.0
+        run: |
+          set -euo pipefail
+          unzip -q -o /tmp/revertshield-0.8.0.zip -d /tmp/revertshield-upgrade-wp/wp-content/plugins
+          wp plugin is-active revertshield --path=/tmp/revertshield-upgrade-wp
+          test "$(wp plugin get revertshield --field=version --path=/tmp/revertshield-upgrade-wp)" = "0.8.0"
+          test "$(wp option get revertshield_upgrade_probe --path=/tmp/revertshield-upgrade-wp)" = "preserved"
+          wp eval 'if (!defined("REVERTSHIELD_VERSION") || "0.8.0" !== REVERTSHIELD_VERSION) { throw new RuntimeException("Upgraded plugin did not boot as 0.8.0."); }' --path=/tmp/revertshield-upgrade-wp
+          wp eval-file "$GITHUB_WORKSPACE/tests/runtime-smoke.php" --path=/tmp/revertshield-upgrade-wp
