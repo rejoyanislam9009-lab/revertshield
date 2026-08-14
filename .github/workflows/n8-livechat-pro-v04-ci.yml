@@ -1,0 +1,78 @@
+name: N8 LiveChat Pro v0.4 CI
+
+on:
+  push:
+    branches:
+      - feature/n8-livechat-pro-v0.4
+    paths:
+      - 'n8-livechat-pro/**'
+      - '.github/workflows/n8-livechat-pro-v04-ci.yml'
+  pull_request:
+    paths:
+      - 'n8-livechat-pro/**'
+      - '.github/workflows/n8-livechat-pro-v04-ci.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  php-lint:
+    name: PHP ${{ matrix.php }} syntax
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['7.4', '8.4']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          coverage: none
+      - name: Lint PHP
+        run: find n8-livechat-pro -type f -name '*.php' -print0 | xargs -0 -n1 php -l
+
+  javascript:
+    name: JavaScript syntax
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check JavaScript
+        run: find n8-livechat-pro/assets/js -type f -name '*.js' -print0 | xargs -0 -n1 node --check
+
+  package:
+    name: Release package checks
+    runs-on: ubuntu-latest
+    needs: [php-lint, javascript]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify metadata and security boundaries
+        run: |
+          grep -F 'Version:     0.4.0' n8-livechat-pro/n8-livechat-pro.php
+          grep -F "define( 'N8LC_VERSION', '0.4.0' );" n8-livechat-pro/n8-livechat-pro.php
+          grep -F 'Stable tag: 0.4.0' n8-livechat-pro/readme.txt
+          grep -F 'Tested up to: 7.0' n8-livechat-pro/readme.txt
+          ! grep -R --include='*.php' -n 'onclick=' n8-livechat-pro
+          grep -F "prechat_consent_required" n8-livechat-pro/includes/class-n8lc-rest.php
+          grep -F "wp_privacy_personal_data_exporters" n8-livechat-pro/includes/class-n8lc-privacy.php
+          grep -F "https://" n8-livechat-pro/includes/class-n8lc-platform.php
+      - name: Build installable ZIP
+        run: |
+          rm -rf /tmp/n8lc-package
+          mkdir -p /tmp/n8lc-package
+          cp -a n8-livechat-pro /tmp/n8lc-package/n8-livechat-pro
+          cd /tmp/n8lc-package
+          zip -qr "$GITHUB_WORKSPACE/n8-livechat-pro-0.4.0.zip" n8-livechat-pro
+          cd "$GITHUB_WORKSPACE"
+          sha256sum n8-livechat-pro-0.4.0.zip > n8-livechat-pro-0.4.0.sha256
+          unzip -t n8-livechat-pro-0.4.0.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: n8-livechat-pro-0.4.0
+          path: |
+            n8-livechat-pro-0.4.0.zip
+            n8-livechat-pro-0.4.0.sha256
+          if-no-files-found: error
