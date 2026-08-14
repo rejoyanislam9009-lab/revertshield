@@ -1,3 +1,5 @@
 version=0.4.0
 delta_sha256=832df5e901e5ac3c3932702c346ccb6ae8d820c6edd9259bf1999e42eec64111
 source_base=1e1c91c36fc515f98891e6276c7a1e06695af70d
+retry=2
+reason=https-static-assertion-corrected
