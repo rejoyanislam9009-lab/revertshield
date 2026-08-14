@@ -659,10 +659,13 @@ final class N8LC_Platform {
     public function rest_agents() {
         global $wpdb;
         $table = self::table( 'agent_profiles' );
-        $users = get_users( array( 'fields' => array( 'ID', 'display_name', 'user_email', 'roles' ) ) );
+        $users = get_users( array( 'fields' => 'all' ) );
         $items = array();
         $can_onboard = current_user_can( 'manage_options' );
         foreach ( $users as $user ) {
+            if ( ! ( $user instanceof WP_User ) ) {
+                continue;
+            }
             $is_agent   = in_array( 'n8_livechat_agent', (array) $user->roles, true );
             $is_manager = in_array( 'n8_livechat_manager', (array) $user->roles, true );
             $is_admin   = user_can( $user, 'manage_options' );

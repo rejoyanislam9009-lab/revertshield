@@ -62,7 +62,10 @@ final class N8LC_Admin {
         }
 
         $agents       = array();
-        foreach ( get_users( array( 'fields' => array( 'ID', 'display_name', 'user_email' ) ) ) as $user ) {
+        foreach ( get_users( array( 'fields' => 'all' ) ) as $user ) {
+            if ( ! ( $user instanceof WP_User ) ) {
+                continue;
+            }
             if ( user_can( $user, 'n8lc_reply_chat' ) || user_can( $user, 'manage_options' ) ) {
                 $agents[] = array(
                     'id'    => (int) $user->ID,

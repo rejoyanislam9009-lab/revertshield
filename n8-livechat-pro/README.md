@@ -1,6 +1,6 @@
-# N8 LiveChat Pro 0.4.1
+# N8 LiveChat Pro 0.4.2
 
-N8 LiveChat Pro is a standalone WordPress live-chat and support-operations plugin. Version 0.4.1 preserves the validated v0.3 chat core and adds a professional platform layer for team management, routing, customer data, knowledge, privacy, integrations, diagnostics and deeper widget behavior.
+N8 LiveChat Pro is a standalone WordPress live-chat and support-operations plugin. Version 0.4.2 preserves the validated v0.3 chat core and adds a professional platform layer for team management, routing, customer data, knowledge, privacy, integrations, diagnostics and deeper widget behavior.
 
 ## 0.4.1 recovery hotfix
 
@@ -103,7 +103,7 @@ v0.4 is additive by design:
 
 ## Installation / upgrade
 1. Back up the WordPress database and site files before a production upgrade.
-2. Upload `n8-livechat-pro-0.4.1.zip` from **Plugins -> Add New Plugin -> Upload Plugin**.
+2. Upload `n8-livechat-pro-0.4.2.zip` from **Plugins -> Add New Plugin -> Upload Plugin**.
 3. When replacing an earlier N8 LiveChat Pro version, use WordPress's replace-current-plugin flow.
 4. Open **N8 LiveChat -> Settings** for existing chat/visual settings.
 5. Open **N8 LiveChat -> Platform** for team, routing, fields, integrations, privacy behavior and diagnostics.
