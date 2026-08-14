@@ -17,6 +17,7 @@ final class N8LC_Core {
     public function boot() {
         $this->maybe_upgrade();
         N8LC_REST::instance()->hooks();
+        N8LC_Visual::instance()->hooks();
         N8LC_Admin::instance()->hooks();
         N8LC_Widget::instance()->hooks();
         N8LC_Automation::instance()->hooks();
