@@ -28,7 +28,22 @@ jobs:
 
       - name: Reconstruct and verify release
         run: |
-          cat dist/v03-payload/part* | base64 --decode > /tmp/n8-livechat-pro-0.3.0.zip
+          cat \
+            dist/v03-payload/part00 \
+            dist/v03-payload/part01 \
+            dist/v03-payload/part02 \
+            dist/v03-payload/part03 \
+            dist/v03-payload/part04 \
+            dist/v03-payload/part05 \
+            dist/v03-payload/part06 \
+            dist/v03-payload/part07 \
+            dist/v03-payload/part08 \
+            dist/v03-payload/part09a \
+            dist/v03-payload/part09b \
+            dist/v03-payload/part10a \
+            dist/v03-payload/part10b \
+            dist/v03-payload/part11 \
+            | base64 --decode > /tmp/n8-livechat-pro-0.3.0.zip
           echo '32fa3b21d4f8afffbe4af221f7035ea7b5e04b2ded9dbd0d87de8d142c343fec  /tmp/n8-livechat-pro-0.3.0.zip' | sha256sum -c -
           unzip -t /tmp/n8-livechat-pro-0.3.0.zip
 
