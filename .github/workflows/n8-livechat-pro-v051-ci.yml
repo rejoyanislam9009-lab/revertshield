@@ -1,0 +1,120 @@
+name: N8 LiveChat Pro v0.5.1 Reliability Hotfix
+
+on:
+  push:
+    branches:
+      - feature/n8-livechat-pro-v0.5.1
+    paths:
+      - 'dist/v051.patch.gz.b64.*'
+      - '.github/workflows/n8-livechat-pro-v051-ci.yml'
+      - '.github/tests/n8lc-v051/**'
+
+permissions:
+  contents: write
+
+jobs:
+  validate-and-publish:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout v0.5.1 branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Reconstruct and verify exact hotfix
+        run: |
+          cat dist/v051.patch.gz.b64.00 dist/v051.patch.gz.b64.01 dist/v051.patch.gz.b64.02 dist/v051.patch.gz.b64.03 dist/v051.patch.gz.b64.04 dist/v051.patch.gz.b64.05 > /tmp/v051.patch.gz.b64
+          echo '1a81a8777a7718223442abb18caea1ff0b6c3f41514e0632fa2d40ab89e76dc7  /tmp/v051.patch.gz.b64' | sha256sum -c -
+          base64 -d /tmp/v051.patch.gz.b64 | gzip -dc > /tmp/v051.patch
+          echo '8d31a110b22b60c346ff3a673a153ab1bd7bd5a115866c771605218b192c75e0  /tmp/v051.patch' | sha256sum -c -
+          patch -p1 --dry-run < /tmp/v051.patch
+          patch -p1 < /tmp/v051.patch
+
+      - name: Verify reliability and responsive boundaries
+        run: |
+          grep -F 'Version:     0.5.1' n8-livechat-pro/n8-livechat-pro.php
+          grep -F "define( 'N8LC_VERSION', '0.5.1' );" n8-livechat-pro/n8-livechat-pro.php
+          grep -F 'Stable tag: 0.5.1' n8-livechat-pro/readme.txt
+          grep -F "const DB_VERSION = '2.1.0';" n8-livechat-pro/includes/class-n8lc-db.php
+          grep -F "wp_enqueue_style( 'n8lc-widget-experience'" n8-livechat-pro/includes/class-n8lc-widget.php
+          grep -F "closed_reason varchar(24) NOT NULL DEFAULT ''" n8-livechat-pro/includes/class-n8lc-db.php
+          grep -F 'messagesLoading: null' n8-livechat-pro/assets/js/widget-v03.js
+          grep -F 'csatEligible: false' n8-livechat-pro/assets/js/widget-v03.js
+          grep -F 'appendAdminMessage(payload.message)' n8-livechat-pro/assets/js/admin.js
+          grep -F "'latest_message_id'=>" n8-livechat-pro/includes/class-n8lc-rest.php
+          grep -F '@media(max-width:1100px)' n8-livechat-pro/assets/css/admin.css
+          grep -F 'v0.5.1 reliability + mobile theme isolation' n8-livechat-pro/assets/css/widget-v04.css
+          grep -F "if ( 'visitor' !== \$reason )" n8-livechat-pro/includes/class-n8lc-rest.php
+
+      - name: Setup PHP 7.4
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '7.4'
+          coverage: none
+
+      - name: PHP 7.4 syntax gate
+        run: find n8-livechat-pro -type f -name '*.php' -print0 | xargs -0 -n1 php -l
+
+      - name: PHP 7.4 CSAT lifecycle runtime test
+        run: php .github/tests/n8lc-v051/test-csat-php.php
+
+      - name: PHP 7.4 stylesheet enqueue runtime test
+        run: php .github/tests/n8lc-v051/test-widget-enqueue.php
+
+      - name: Setup PHP 8.4
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          coverage: none
+
+      - name: PHP 8.4 syntax gate
+        run: find n8-livechat-pro -type f -name '*.php' -print0 | xargs -0 -n1 php -l
+
+      - name: PHP 8.4 CSAT lifecycle runtime test
+        run: php .github/tests/n8lc-v051/test-csat-php.php
+
+      - name: PHP 8.4 stylesheet enqueue runtime test
+        run: php .github/tests/n8lc-v051/test-widget-enqueue.php
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: JavaScript syntax gate
+        run: find n8-livechat-pro/assets/js -type f -name '*.js' -print0 | xargs -0 -n1 node --check
+
+      - name: Message dedupe and cursor regression test
+        run: node .github/tests/n8lc-v051/test-merge.js
+
+      - name: CSAT frontend lifecycle regression test
+        run: node .github/tests/n8lc-v051/test-csat-js.js
+
+      - name: Admin optimistic reply echo regression test
+        run: node .github/tests/n8lc-v051/test-admin-echo.js
+
+      - name: Build and verify installable ZIP
+        run: |
+          rm -f dist/n8-livechat-pro-0.5.1.zip dist/n8-livechat-pro-0.5.1.sha256
+          zip -qr dist/n8-livechat-pro-0.5.1.zip n8-livechat-pro -x '*/.DS_Store'
+          sha256sum dist/n8-livechat-pro-0.5.1.zip > dist/n8-livechat-pro-0.5.1.sha256
+          unzip -t dist/n8-livechat-pro-0.5.1.zip
+
+      - name: Upload verified release artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: n8-livechat-pro-0.5.1
+          path: |
+            dist/n8-livechat-pro-0.5.1.zip
+            dist/n8-livechat-pro-0.5.1.sha256
+          if-no-files-found: error
+
+      - name: Publish verified source and package
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git rm dist/v051.patch.gz.b64.00 dist/v051.patch.gz.b64.01 dist/v051.patch.gz.b64.02 dist/v051.patch.gz.b64.03 dist/v051.patch.gz.b64.04 dist/v051.patch.gz.b64.05
+          git add n8-livechat-pro dist/n8-livechat-pro-0.5.1.zip dist/n8-livechat-pro-0.5.1.sha256
+          git commit -m 'Publish N8 LiveChat Pro 0.5.1 reliability hotfix'
+          git push
