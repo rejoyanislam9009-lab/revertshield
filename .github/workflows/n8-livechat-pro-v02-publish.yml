@@ -5,7 +5,7 @@ on:
     branches:
       - feature/n8-livechat-pro-v0.2
     paths:
-      - 'dist/n8-livechat-pro-0.2.0.zip'
+      - 'dist/n8-livechat-pro-0.2.0.publish'
       - '.github/workflows/n8-livechat-pro-v02-publish.yml'
 
 permissions:
@@ -27,6 +27,12 @@ jobs:
           php-version: '7.4'
           coverage: none
 
+      - name: Reconstruct installable release
+        run: |
+          cat dist/n8-livechat-pro-0.2.0.zip.b64.part* | base64 --decode > dist/n8-livechat-pro-0.2.0.zip
+          sha256sum -c dist/n8-livechat-pro-0.2.0.sha256
+          unzip -t dist/n8-livechat-pro-0.2.0.zip
+
       - name: Expand installable release
         run: |
           rm -rf /tmp/n8lc-release n8-livechat-pro
@@ -44,14 +50,14 @@ jobs:
       - name: Verify release version
         run: grep -F 'Version:     0.2.0' n8-livechat-pro/n8-livechat-pro.php
 
-      - name: Commit expanded source
+      - name: Commit expanded source and ZIP
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add n8-livechat-pro
+          git add n8-livechat-pro dist/n8-livechat-pro-0.2.0.zip
           if git diff --cached --quiet; then
-            echo 'Source tree already matches the v0.2 release.'
+            echo 'Source tree and release ZIP already match v0.2.0.'
             exit 0
           fi
-          git commit -m 'Publish N8 LiveChat Pro 0.2.0 source'
+          git commit -m 'Publish N8 LiveChat Pro 0.2.0 source and ZIP'
           git push
