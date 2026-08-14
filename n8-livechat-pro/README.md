@@ -1,131 +1,96 @@
-# N8 LiveChat Pro
+# N8 LiveChat Pro 0.2.0
 
-N8 LiveChat Pro is a standalone WordPress live-chat and support-inbox plugin being developed in an isolated branch of this repository. It is intentionally separated under `n8-livechat-pro/` so the existing RevertShield plugin remains untouched unless this branch is deliberately merged.
+N8 LiveChat Pro is a standalone WordPress live chat and support-inbox plugin. Version 0.2.0 keeps the v0.1 visitor chat, agent inbox, departments, canned replies, visitors and analytics, then adds higher-functionality support operations.
 
-## Current feature set
+## Included in v0.2.0
 
-### Visitor experience
+### Visitor chat
+- Responsive floating chat widget.
+- Lead capture for name, email and phone.
+- Department selection.
+- Persistent browser session and message history.
+- Online/away state based on configurable business hours.
+- Visitor and agent typing indicators.
+- File and image attachments with size and MIME restrictions.
+- End-chat flow and 1-5 star CSAT rating with optional comment.
+- Polling transport with heartbeat and session recovery.
 
-- Floating responsive chat launcher and panel.
-- Lead capture: name, email, phone, and department.
-- Optional required email.
-- Persistent browser chat session using a high-entropy visitor token.
-- Message history restore after page navigation/reload.
-- Near-real-time polling with configurable interval.
-- Visitor heartbeat and online-presence tracking.
-- Welcome message and widget branding controls.
-- Left/right widget placement and accent-color control.
-- Responsive mobile layout.
+### Agent inbox
+- Live conversation list with search, status and priority filters.
+- Agent and department assignment.
+- Automatic assignment using lowest active load or round robin.
+- Low/normal/high/urgent priorities.
+- Public replies and internal/private notes.
+- File/image attachments from agents.
+- Canned replies.
+- Conversation tags.
+- Custom key/value conversation fields.
+- Visitor typing status.
+- Email transcript action.
+- SLA breach indicators.
 
-### Agent dashboard
+### Dashboard and operations
+- Open, pending, unread, online visitor, daily activity and SLA counters.
+- Desktop browser notifications while the WordPress admin page is open.
+- Separate Tags, Automation, Analytics, Audit & Export and Settings screens.
+- CSV conversation export.
+- Audit event viewer.
+- 7/30/90-day analytics.
+- Average first-response time, CSAT and SLA-breach metrics.
 
-- WordPress admin dashboard with live operational counters.
-- Team inbox with conversation list and unread badges.
-- Search by visitor/subject.
-- Filter by open, pending, or closed state.
-- Conversation assignment to WordPress agents.
-- Department assignment.
-- Priority: low, normal, high, urgent.
-- Public agent replies.
-- Internal/private notes hidden from visitors.
-- Canned replies with slash-style shortcuts.
-- Visitor directory with last page, first seen, last seen, and chat count.
-- Department management.
-- 7/30/90-day activity analytics.
-- Status and department volume reports.
-- Admin-bar unread counter.
-- Dedicated WordPress capabilities for chat, replies, settings, and analytics.
+### Automation
+- Configurable business hours.
+- Automatic assignment to WordPress users with the LiveChat reply capability.
+- Dedicated `N8 LiveChat Agent` WordPress role.
+- First-response and resolution SLA targets.
+- Five-minute SLA monitoring via WP-Cron.
+- Automatic urgent priority on SLA breach.
+- Optional admin escalation email.
+- Optional new-message email notifications.
 
-### Data and security
+### n8n / CRM / integrations
+- Signed outbound webhooks.
+- HMAC-SHA256 signature in `X-N8LC-Signature`.
+- Events for conversation creation, messages, conversation updates and CSAT.
+- Existing WordPress actions remain available for custom integrations.
 
-- Dedicated indexed tables for visitors, conversations, messages, departments, canned replies, and events.
-- Visitor tokens are stored as SHA-256 hashes, not plaintext.
+### Security and privacy
+- Visitor tokens are stored as SHA-256 hashes.
 - IP addresses are stored only as salted HMAC hashes.
-- Public message/session rate limiting.
-- WordPress REST nonces for admin endpoints.
-- Capability checks for all protected actions.
-- Input sanitization and escaped UI output.
-- Private notes are excluded from visitor message APIs.
-- Conservative uninstall: chat history is preserved by default.
-- Daily event-retention cleanup.
+- Public session/message/upload rate limits.
+- WordPress REST nonce and capability checks for protected routes.
+- Upload type and size allowlist.
+- Upload validation extension hook: `n8lc_validate_upload`.
+- Webhook delivery uses WordPress safe HTTP requests.
+- Private notes never appear in visitor message APIs.
+- Conservative uninstall: data is preserved unless the administrator explicitly enables deletion.
 
-### Extensibility
+## Installation
+1. Download `n8-livechat-pro-0.2.0.zip`.
+2. In WordPress go to **Plugins -> Add New Plugin -> Upload Plugin**.
+3. Upload the ZIP and activate **N8 LiveChat Pro**.
+4. Open **N8 LiveChat -> Settings** and configure the widget.
+5. Open **N8 LiveChat -> Automation** for business hours, assignment, SLA and webhooks.
+6. Create or edit WordPress users and assign the **N8 LiveChat Agent** role as needed.
+7. Use **N8 LiveChat -> Inbox** to answer visitors.
 
-The plugin emits WordPress actions so integrations can be added without rewriting chat core:
-
-- `n8lc_conversation_created`
-- `n8lc_message_created`
-- `n8lc_after_daily_cleanup`
-
-These hooks are intended for future n8n/webhook, CRM, Slack, email, AI-assistant, and notification adapters.
-
-## Installation from this branch
-
-1. Copy the `n8-livechat-pro` directory into `wp-content/plugins/`.
-2. Activate **N8 LiveChat Pro** from WordPress Plugins.
-3. Open **N8 LiveChat → Settings** and configure the widget.
-4. Open **N8 LiveChat → Inbox** to answer visitors.
-
-Requirements:
-
+## Requirements
 - WordPress 6.5+
 - PHP 7.4+
 
-## Architecture
+## Main hooks
+- `n8lc_conversation_created`
+- `n8lc_message_created`
+- `n8lc_conversation_updated`
+- `n8lc_csat_submitted`
+- `n8lc_after_daily_cleanup`
+- `n8lc_validate_upload`
+- `n8lc_allowed_upload_mimes`
 
-```text
-n8-livechat-pro/
-├── n8-livechat-pro.php
-├── uninstall.php
-├── includes/
-│   ├── class-n8lc-core.php
-│   ├── class-n8lc-db.php
-│   ├── class-n8lc-security.php
-│   ├── class-n8lc-rest.php
-│   ├── class-n8lc-admin.php
-│   └── class-n8lc-widget.php
-└── assets/
-    ├── css/
-    │   ├── admin.css
-    │   └── widget.css
-    └── js/
-        ├── admin.js
-        └── widget.js
-```
-
-## Data model
-
-- `wp_n8lc_visitors` — visitor identity, privacy-conscious metadata, browser-session token hash, presence.
-- `wp_n8lc_conversations` — assignment, department, status, priority, unread counters.
-- `wp_n8lc_messages` — visitor messages, agent replies, private notes, system messages.
-- `wp_n8lc_departments` — support queues/departments.
-- `wp_n8lc_canned_replies` — reusable agent responses.
-- `wp_n8lc_events` — operational event stream for analytics/integrations.
-
-## Next high-functionality milestones
-
-The current build is a strong database-backed polling version. The next production milestones should be added without removing existing behavior:
-
-1. WebSocket/SSE transport adapter while retaining polling fallback.
-2. Typing indicators and agent presence.
-3. File/image attachments with MIME, size, malware, and capability controls.
-4. Conversation tags, custom fields, and saved inbox views.
-5. Round-robin/load-based auto-assignment.
-6. Business hours, offline tickets, SLA timers, and escalation policies.
-7. Email notifications and visitor transcript delivery.
-8. Signed outbound webhooks and n8n/CRM integrations.
-9. Browser/desktop push notifications.
-10. CSAT/rating flow and richer response-time analytics.
-11. AI suggested replies with administrator-controlled provider configuration.
-12. Multi-site/network-aware controls.
-13. Import/export and backup tools.
-14. Audit log viewer and granular retention policies.
-15. Automated WordPress runtime tests, PHPCS, Plugin Check, and release ZIP workflow.
-
-## Development rule
-
-Existing working functions should be treated as compatibility boundaries. New features should be layered behind stable services, database migrations, REST versioning, and feature flags rather than replacing known-good behavior.
+## Notes
+- Real WebSockets require a persistent socket service or compatible hosting layer. This build intentionally retains reliable REST polling so it works on ordinary WordPress hosting.
+- File uploads are restricted but this plugin does not bundle a malware scanning engine. Sites that require scanning should connect a scanner through `n8lc_validate_upload`.
+- WordPress email delivery depends on the site's mail configuration.
 
 ## License
-
 GPL-2.0-or-later.

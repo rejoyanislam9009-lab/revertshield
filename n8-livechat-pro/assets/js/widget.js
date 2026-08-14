@@ -1,6 +1,5 @@
 (function () {
   'use strict';
-
   if (!window.N8LCWidget) return;
 
   var cfg = window.N8LCWidget;
@@ -15,7 +14,12 @@
     lastId: 0,
     polling: null,
     heartbeat: null,
-    busy: false
+    typingTimer: null,
+    busy: false,
+    status: 'open',
+    agentTyping: null,
+    availability: cfg.availability || 'online',
+    csatRating: null
   };
 
   try {
@@ -27,8 +31,8 @@
   root.style.setProperty('--n8lc-accent', cfg.accentColor || '#111827');
   root.classList.add(cfg.position === 'left' ? 'n8lc-left' : 'n8lc-right');
 
-  function esc(value) {
-    return String(value == null ? '' : value)
+  function esc(v) {
+    return String(v == null ? '' : v)
       .replace(/&/g, '&amp;')
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;')
@@ -39,7 +43,12 @@
   function api(path, options) {
     options = options || {};
     options.headers = options.headers || {};
-    options.headers['Content-Type'] = 'application/json';
+    if (options.body && !(options.body instanceof FormData) && typeof options.body !== 'string') {
+      options.headers['Content-Type'] = 'application/json';
+      options.body = JSON.stringify(options.body);
+    } else if (typeof options.body === 'string') {
+      options.headers['Content-Type'] = 'application/json';
+    }
     if (state.session && state.session.token) {
       options.headers['X-N8LC-Token'] = state.session.token;
     }
@@ -52,17 +61,16 @@
   }
 
   function shell() {
-    root.innerHTML = '' +
-      '<button class="n8lc-launcher" type="button" aria-expanded="' + (state.open ? 'true' : 'false') + '" aria-controls="n8lc-panel">' +
-        '<span class="n8lc-launcher-icon">' + (state.open ? '&#10005;' : '&#128172;') + '</span>' +
-      '</button>' +
+    root.innerHTML = '<button class="n8lc-launcher" type="button" aria-expanded="' + (state.open ? 'true' : 'false') + '" aria-controls="n8lc-panel"><span class="n8lc-launcher-icon">' + (state.open ? '&#10005;' : '&#128172;') + '</span></button>' +
       '<section id="n8lc-panel" class="n8lc-panel ' + (state.open ? 'is-open' : '') + '" aria-hidden="' + (state.open ? 'false' : 'true') + '">' +
-        '<header class="n8lc-header"><div><strong>' + esc(cfg.title) + '</strong><span>Support</span></div><button type="button" class="n8lc-close" aria-label="' + esc(cfg.i18n.close) + '">&#10005;</button></header>' +
+        '<header class="n8lc-header"><div><strong>' + esc(cfg.title) + '</strong><span class="n8lc-presence n8lc-presence-' + esc(state.availability) + '">● ' + esc(state.availability === 'online' ? cfg.i18n.online : cfg.i18n.away) + '</span></div><div class="n8lc-header-actions">' + (state.session && state.status !== 'closed' ? '<button type="button" class="n8lc-end" title="' + esc(cfg.i18n.end) + '">End</button>' : '') + '<button type="button" class="n8lc-close" aria-label="' + esc(cfg.i18n.close) + '">&#10005;</button></div></header>' +
         '<div class="n8lc-content"></div>' +
       '</section>';
 
     root.querySelector('.n8lc-launcher').addEventListener('click', toggle);
     root.querySelector('.n8lc-close').addEventListener('click', toggle);
+    var end = root.querySelector('.n8lc-end');
+    if (end) end.addEventListener('click', endChat);
     renderContent();
   }
 
@@ -71,6 +79,7 @@
     shell();
     if (state.open && state.session) {
       loadMessages();
+      loadState();
       startPolling();
     } else if (!state.open) {
       stopPolling();
@@ -82,8 +91,7 @@
     if (!content) return;
     if (!state.session) {
       content.innerHTML = startForm();
-      var form = content.querySelector('.n8lc-start-form');
-      form.addEventListener('submit', startSession);
+      content.querySelector('.n8lc-start-form').addEventListener('submit', startSession);
       return;
     }
     content.innerHTML = chatView();
@@ -98,17 +106,12 @@
         return '<option value="' + Number(d.id) + '">' + esc(d.name) + '</option>';
       }).join('') + '</select></label>';
     }
-    return '<div class="n8lc-start">' +
-      '<p>Start a conversation with our team.</p>' +
-      '<form class="n8lc-start-form">' +
-        '<label>' + esc(cfg.i18n.name) + '<input name="name" type="text" autocomplete="name" maxlength="190"></label>' +
-        '<label>' + esc(cfg.i18n.email) + (cfg.requireEmail ? ' *' : '') + '<input name="email" type="email" autocomplete="email" maxlength="190" ' + (cfg.requireEmail ? 'required' : '') + '></label>' +
-        '<label>' + esc(cfg.i18n.phone) + '<input name="phone" type="text" autocomplete="tel" maxlength="80"></label>' +
-        department +
-        '<div class="n8lc-form-error" role="alert"></div>' +
-        '<button type="submit" class="n8lc-primary">' + esc(cfg.i18n.start) + '</button>' +
-      '</form>' +
-    '</div>';
+    var away = state.availability === 'away' ? '<div class="n8lc-away-box">' + esc(cfg.offlineMessage || 'We are currently away. Leave a message and we will get back to you.') + '</div>' : '';
+    return '<div class="n8lc-start"><p>Start a conversation with our team.</p>' + away + '<form class="n8lc-start-form">' +
+      '<label>' + esc(cfg.i18n.name) + '<input name="name" type="text" autocomplete="name" maxlength="190"></label>' +
+      '<label>' + esc(cfg.i18n.email) + (cfg.requireEmail ? ' *' : '') + '<input name="email" type="email" autocomplete="email" maxlength="190" ' + (cfg.requireEmail ? 'required' : '') + '></label>' +
+      '<label>' + esc(cfg.i18n.phone) + '<input name="phone" type="text" autocomplete="tel" maxlength="80"></label>' + department +
+      '<div class="n8lc-form-error" role="alert"></div><button type="submit" class="n8lc-primary">' + esc(cfg.i18n.start) + '</button></form></div>';
   }
 
   function startSession(ev) {
@@ -124,7 +127,7 @@
 
     api('session', {
       method: 'POST',
-      body: JSON.stringify({
+      body: {
         name: data.get('name') || '',
         email: data.get('email') || '',
         phone: data.get('phone') || '',
@@ -134,49 +137,83 @@
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || '',
         language: navigator.language || '',
         screen: window.screen ? window.screen.width + 'x' + window.screen.height : ''
-      })
+      }
     }).then(function (session) {
       state.session = session;
+      state.availability = session.availability || state.availability;
       localStorage.setItem(storageKey, JSON.stringify(session));
       state.messages = [];
       state.lastId = 0;
-      renderContent();
-      loadMessages();
-      startPolling();
-    }).catch(function (err) {
+      state.status = 'open';
+      shell();
+      return Promise.all([loadMessages(), loadState()]);
+    }).then(startPolling).catch(function (err) {
       error.textContent = err.message || cfg.i18n.error;
     }).finally(function () {
       state.busy = false;
-      button.disabled = false;
+      if (button) button.disabled = false;
     });
   }
 
-  function chatView() {
-    var messages = state.messages.map(function (msg) {
-      var who = msg.sender_type === 'visitor' ? 'visitor' : (msg.sender_type === 'system' ? 'system' : 'agent');
-      return '<div class="n8lc-msg n8lc-msg-' + who + '"><div class="n8lc-bubble">' + esc(msg.body) + '</div><time>' + esc(timeLabel(msg.created_at)) + '</time></div>';
-    }).join('');
+  function messageHtml(msg) {
+    var who = msg.sender_type === 'visitor' ? 'visitor' : (msg.sender_type === 'system' ? 'system' : 'agent');
+    var body = esc(msg.body || '');
+    if (msg.attachment_url) {
+      var url = esc(msg.attachment_url);
+      var name = esc(msg.attachment_name || msg.body || 'Attachment');
+      if (msg.message_type === 'image') {
+        body = '<a href="' + url + '" target="_blank" rel="noopener"><img class="n8lc-chat-image" src="' + url + '" alt="' + name + '"></a><small class="n8lc-chat-file-name">' + name + '</small>';
+      } else {
+        body = '<a class="n8lc-chat-file" href="' + url + '" target="_blank" rel="noopener">📎 ' + name + '</a>';
+      }
+    }
+    return '<div class="n8lc-msg n8lc-msg-' + who + '"><div class="n8lc-bubble">' + body + '</div><time>' + esc(timeLabel(msg.created_at)) + '</time></div>';
+  }
 
-    return '<div class="n8lc-chat">' +
-      '<div class="n8lc-messages" role="log">' + (messages || '<div class="n8lc-chat-loading">Connecting…</div>') + '</div>' +
-      '<form class="n8lc-compose">' +
-        '<textarea name="message" rows="2" maxlength="5000" placeholder="' + esc(cfg.i18n.placeholder) + '" required></textarea>' +
-        '<button type="submit" aria-label="' + esc(cfg.i18n.send) + '">&#10148;</button>' +
-      '</form>' +
-    '</div>';
+  function ratingHtml() {
+    if (!cfg.csatEnabled || state.status !== 'closed' || state.csatRating) return '';
+    return '<div class="n8lc-rating"><strong>' + esc(cfg.i18n.rateUs) + '</strong><div class="n8lc-stars">' + [1,2,3,4,5].map(function (n) { return '<button type="button" data-rating="' + n + '" aria-label="' + n + ' stars">★</button>'; }).join('') + '</div><textarea id="n8lc-rating-comment" rows="2" maxlength="1000" placeholder="Optional comment"></textarea><div id="n8lc-rating-status"></div></div>';
+  }
+
+  function chatView() {
+    var messages = state.messages.map(messageHtml).join('');
+    var typing = state.agentTyping ? '<div class="n8lc-agent-typing">' + esc((state.agentTyping.name ? state.agentTyping.name + ' ' : '') + cfg.i18n.typing) + '</div>' : '<div class="n8lc-agent-typing"></div>';
+    var attach = cfg.uploadsEnabled ? '<input type="file" id="n8lc-visitor-file" class="n8lc-hidden-file"><button type="button" class="n8lc-attach" title="' + esc(cfg.i18n.attach) + '">📎</button>' : '';
+    var closed = state.status === 'closed' ? '<div class="n8lc-closed-note">This conversation is closed. Sending a new message will reopen it.</div>' : '';
+    return '<div class="n8lc-chat"><div class="n8lc-messages" role="log">' + (messages || '<div class="n8lc-chat-loading">Connecting…</div>') + '</div>' + typing + ratingHtml() + closed + '<form class="n8lc-compose">' + attach + '<textarea name="message" rows="2" maxlength="5000" placeholder="' + esc(cfg.i18n.placeholder) + '" required></textarea><button type="submit" class="n8lc-send" aria-label="' + esc(cfg.i18n.send) + '">&#10148;</button></form><div id="n8lc-upload-status" class="n8lc-upload-status"></div></div>';
   }
 
   function bindChat() {
     var form = root.querySelector('.n8lc-compose');
-    if (!form) return;
-    form.addEventListener('submit', sendMessage);
-    var textarea = form.querySelector('textarea');
-    textarea.addEventListener('keydown', function (ev) {
-      if (ev.key === 'Enter' && !ev.shiftKey) {
-        ev.preventDefault();
-        form.requestSubmit();
-      }
+    if (form) {
+      form.addEventListener('submit', sendMessage);
+      var textarea = form.querySelector('textarea');
+      textarea.addEventListener('keydown', function (ev) {
+        if (ev.key === 'Enter' && !ev.shiftKey) {
+          ev.preventDefault();
+          form.requestSubmit();
+        }
+      });
+      textarea.addEventListener('input', visitorTyping);
+    }
+    var attach = root.querySelector('.n8lc-attach');
+    var file = root.querySelector('#n8lc-visitor-file');
+    if (attach && file) {
+      attach.addEventListener('click', function () { file.click(); });
+      file.addEventListener('change', uploadFile);
+    }
+    Array.prototype.forEach.call(root.querySelectorAll('.n8lc-stars button'), function (btn) {
+      btn.addEventListener('click', submitRating);
     });
+  }
+
+  function visitorTyping() {
+    if (!state.session) return;
+    api('typing', { method: 'POST', body: { conversation_id: state.session.conversation_id, typing: true } }).catch(function () {});
+    clearTimeout(state.typingTimer);
+    state.typingTimer = setTimeout(function () {
+      api('typing', { method: 'POST', body: { conversation_id: state.session.conversation_id, typing: false } }).catch(function () {});
+    }, 2200);
   }
 
   function sendMessage(ev) {
@@ -187,17 +224,12 @@
     if (!text) return;
     state.busy = true;
     textarea.disabled = true;
-
-    api('messages', {
-      method: 'POST',
-      body: JSON.stringify({
-        conversation_id: state.session.conversation_id,
-        message: text,
-        url: window.location.href
-      })
-    }).then(function () {
+    api('messages', { method: 'POST', body: { conversation_id: state.session.conversation_id, message: text, url: window.location.href } }).then(function () {
       textarea.value = '';
-      return loadMessages();
+      state.status = state.availability === 'away' ? 'pending' : 'open';
+      return api('typing', { method: 'POST', body: { conversation_id: state.session.conversation_id, typing: false } });
+    }).then(function () {
+      return Promise.all([loadMessages(), loadState()]);
     }).catch(function (err) {
       window.alert(err.message || cfg.i18n.error);
     }).finally(function () {
@@ -207,11 +239,52 @@
     });
   }
 
+  function uploadFile(e) {
+    var file = e.target.files && e.target.files[0];
+    if (!file || !state.session || state.busy) return;
+    if (Number(cfg.maxUploadMb || 5) * 1048576 < file.size) {
+      window.alert('File is larger than the ' + Number(cfg.maxUploadMb || 5) + ' MB limit.');
+      e.target.value = '';
+      return;
+    }
+    state.busy = true;
+    var status = root.querySelector('#n8lc-upload-status');
+    if (status) status.textContent = 'Uploading ' + file.name + '…';
+    var form = new FormData();
+    form.append('file', file);
+    form.append('conversation_id', state.session.conversation_id);
+    api('upload', { method: 'POST', body: form }).then(function () {
+      if (status) status.textContent = 'File sent';
+      e.target.value = '';
+      return loadMessages();
+    }).catch(function (err) {
+      if (status) status.textContent = err.message || cfg.i18n.error;
+    }).finally(function () { state.busy = false; });
+  }
+
+  function submitRating(e) {
+    if (!state.session) return;
+    var rating = Number(e.currentTarget.dataset.rating || 0);
+    var comment = root.querySelector('#n8lc-rating-comment');
+    var status = root.querySelector('#n8lc-rating-status');
+    api('rating', { method: 'POST', body: { conversation_id: state.session.conversation_id, rating: rating, comment: comment ? comment.value : '' } }).then(function () {
+      state.csatRating = rating;
+      renderContent();
+    }).catch(function (err) { if (status) status.textContent = err.message; });
+  }
+
+  function endChat() {
+    if (!state.session || state.status === 'closed') return;
+    if (!window.confirm('End this chat?')) return;
+    api('close', { method: 'POST', body: { conversation_id: state.session.conversation_id } }).then(function () {
+      state.status = 'closed';
+      shell();
+    }).catch(function (err) { window.alert(err.message || cfg.i18n.error); });
+  }
+
   function loadMessages() {
     if (!state.session) return Promise.resolve();
-    return api('messages?conversation_id=' + encodeURIComponent(state.session.conversation_id) + '&after_id=' + encodeURIComponent(state.lastId), {
-      method: 'GET'
-    }).then(function (payload) {
+    return api('messages?conversation_id=' + encodeURIComponent(state.session.conversation_id) + '&after_id=' + encodeURIComponent(state.lastId), { method: 'GET' }).then(function (payload) {
       if (payload.messages && payload.messages.length) {
         payload.messages.forEach(function (msg) {
           state.messages.push(msg);
@@ -220,28 +293,40 @@
         if (state.open) renderContent();
       }
     }).catch(function (err) {
-      if (/Invalid chat session/i.test(err.message || '')) {
-        localStorage.removeItem(storageKey);
-        state.session = null;
-        state.messages = [];
-        state.lastId = 0;
-        renderContent();
-      }
+      if (/Invalid chat session/i.test(err.message || '')) resetSession();
     });
+  }
+
+  function loadState() {
+    if (!state.session) return Promise.resolve();
+    return api('state?conversation_id=' + encodeURIComponent(state.session.conversation_id), { method: 'GET' }).then(function (payload) {
+      var oldStatus = state.status;
+      var oldRating = state.csatRating;
+      state.status = payload.status || state.status;
+      state.agentTyping = payload.agent_typing || null;
+      state.availability = payload.availability || state.availability;
+      state.csatRating = payload.csat_rating == null ? state.csatRating : payload.csat_rating;
+      var typingEl = root.querySelector('.n8lc-agent-typing');
+      if (typingEl) typingEl.textContent = state.agentTyping ? ((state.agentTyping.name ? state.agentTyping.name + ' ' : '') + cfg.i18n.typing) : '';
+      var presence = root.querySelector('.n8lc-presence');
+      if (presence) {
+        presence.textContent = '● ' + (state.availability === 'online' ? cfg.i18n.online : cfg.i18n.away);
+        presence.className = 'n8lc-presence n8lc-presence-' + state.availability;
+      }
+      if (state.open && oldStatus !== state.status) shell();
+      else if (state.open && oldRating !== state.csatRating) renderContent();
+    }).catch(function () {});
   }
 
   function heartbeat() {
     if (!state.session) return;
-    api('heartbeat', {
-      method: 'POST',
-      body: JSON.stringify({ conversation_id: state.session.conversation_id, url: window.location.href })
-    }).catch(function () {});
+    api('heartbeat', { method: 'POST', body: { conversation_id: state.session.conversation_id, url: window.location.href } }).catch(function () {});
   }
 
   function startPolling() {
     stopPolling();
     var interval = Math.max(1500, Number(cfg.pollInterval || (state.session && state.session.poll_interval) || 3000));
-    state.polling = window.setInterval(loadMessages, interval);
+    state.polling = window.setInterval(function () { loadMessages(); loadState(); }, interval);
     state.heartbeat = window.setInterval(heartbeat, 30000);
   }
 
@@ -252,6 +337,22 @@
     state.heartbeat = null;
   }
 
+  function resetSession() {
+    localStorage.removeItem(storageKey);
+    state.session = null;
+    state.messages = [];
+    state.lastId = 0;
+    state.status = 'open';
+    state.agentTyping = null;
+    stopPolling();
+    shell();
+  }
+
+  function scrollBottom() {
+    var box = root.querySelector('.n8lc-messages');
+    if (box) box.scrollTop = box.scrollHeight;
+  }
+
   function timeLabel(value) {
     if (!value) return '';
     var parsed = new Date(String(value).replace(' ', 'T'));
@@ -260,5 +361,8 @@
   }
 
   shell();
-  if (state.session && state.open) startPolling();
+  if (state.session) {
+    loadState();
+    loadMessages();
+  }
 }());
