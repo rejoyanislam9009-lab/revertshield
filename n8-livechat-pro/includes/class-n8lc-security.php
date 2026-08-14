@@ -67,7 +67,10 @@ final class N8LC_Security {
 	public static function sanitize_message( $message ) {
 		$message = is_string( $message ) ? wp_unslash( $message ) : '';
 		$message = trim( wp_strip_all_tags( $message ) );
-		return mb_substr( $message, 0, 5000 );
+		if ( function_exists( 'mb_substr' ) ) {
+			return mb_substr( $message, 0, 5000 );
+		}
+		return substr( $message, 0, 5000 );
 	}
 
 	public static function admin_permission() {
