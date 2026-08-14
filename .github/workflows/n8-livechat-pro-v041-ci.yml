@@ -1,0 +1,101 @@
+name: N8 LiveChat Pro v0.4.1 Recovery CI
+
+on:
+  push:
+    branches:
+      - feature/n8-livechat-pro-v0.4.1
+    paths:
+      - 'n8-livechat-pro/**'
+      - 'tests/livechat-recovery-bootstrap.php'
+      - '.github/workflows/n8-livechat-pro-v041-ci.yml'
+  pull_request:
+    paths:
+      - 'n8-livechat-pro/**'
+      - 'tests/livechat-recovery-bootstrap.php'
+      - '.github/workflows/n8-livechat-pro-v041-ci.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  php-lint:
+    name: PHP ${{ matrix.php }} syntax
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['7.4', '8.4']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          coverage: none
+      - name: Lint plugin PHP
+        run: find n8-livechat-pro -type f -name '*.php' -print0 | xargs -0 -n1 php -l
+
+  javascript:
+    name: JavaScript syntax
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check plugin JavaScript
+        run: find n8-livechat-pro/assets/js -type f -name '*.js' -print0 | xargs -0 -n1 node --check
+
+  recovery:
+    name: Recovery guard runtime test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '7.4'
+          coverage: none
+      - name: Simulate fatal-prone runtime failures
+        run: php tests/livechat-recovery-bootstrap.php
+
+  package:
+    name: Build recovery-safe installable ZIP
+    runs-on: ubuntu-latest
+    needs: [php-lint, javascript, recovery]
+    if: github.event_name == 'push'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Verify recovery boundaries and metadata
+        run: |
+          grep -F 'Version:     0.4.1' n8-livechat-pro/n8-livechat-pro.php
+          grep -F "define( 'N8LC_VERSION', '0.4.1' );" n8-livechat-pro/n8-livechat-pro.php
+          grep -F 'Stable tag: 0.4.1' n8-livechat-pro/readme.txt
+          grep -F 'N8LC_Bootstrap::register();' n8-livechat-pro/n8-livechat-pro.php
+          grep -F "catch ( Throwable" n8-livechat-pro/includes/class-n8lc-bootstrap.php
+          grep -F "deactivate_plugins" n8-livechat-pro/includes/class-n8lc-bootstrap.php
+          ! grep -F "register_activation_hook( __FILE__, array( 'N8LC_DB', 'activate' ) );" n8-livechat-pro/n8-livechat-pro.php
+      - name: Build and verify ZIP
+        run: |
+          rm -f dist/n8-livechat-pro-0.4.1.zip dist/n8-livechat-pro-0.4.1.sha256
+          zip -qr dist/n8-livechat-pro-0.4.1.zip n8-livechat-pro -x '*/.DS_Store'
+          sha256sum dist/n8-livechat-pro-0.4.1.zip > dist/n8-livechat-pro-0.4.1.sha256
+          unzip -t dist/n8-livechat-pro-0.4.1.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: n8-livechat-pro-0.4.1
+          path: |
+            dist/n8-livechat-pro-0.4.1.zip
+            dist/n8-livechat-pro-0.4.1.sha256
+          if-no-files-found: error
+      - name: Publish recovery-safe package to branch
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add dist/n8-livechat-pro-0.4.1.zip dist/n8-livechat-pro-0.4.1.sha256
+          if git diff --cached --quiet; then
+            echo 'Release package already current.'
+          else
+            git commit -m 'Publish N8 LiveChat Pro 0.4.1 recovery package'
+            git push
+          fi
