@@ -1,95 +1,111 @@
-# N8 LiveChat Pro 0.3.0
+# N8 LiveChat Pro 0.4.0
 
-N8 LiveChat Pro is a standalone WordPress live chat and support-inbox plugin. Version 0.3.0 keeps the v0.1 visitor chat, agent inbox, departments, canned replies, visitors and analytics, then adds higher-functionality support operations.
+N8 LiveChat Pro is a standalone WordPress live-chat and support-operations plugin. Version 0.4.0 preserves the validated v0.3 chat core and adds a professional platform layer for team management, routing, customer data, knowledge, privacy, integrations, diagnostics and deeper widget behavior.
 
-## Included in v0.3.0
+## What is included
 
-### Visitor chat
-- Responsive floating chat widget.
-- Lead capture for name, email and phone.
-- Department selection.
-- Persistent browser session and message history.
-- Online/away state based on configurable business hours.
+### Visitor live chat
+- Responsive floating widget with persistent browser sessions and message history.
+- Name, email, phone and department capture.
+- Admin-defined pre-chat custom fields: text, email, phone, number, textarea, select and checkbox.
+- Optional or required consent checkbox with configurable text.
+- Online/away state from business hours.
 - Visitor and agent typing indicators.
-- File and image attachments with size and MIME restrictions.
-- End-chat flow and 1-5 star CSAT rating with optional comment.
-- Polling transport with heartbeat and session recovery.
+- Image/file attachments with MIME and size controls.
+- End-chat flow and 1-5 star CSAT with optional comment.
+- Greeting teaser, unread badge, notification sound and mobile full-screen mode.
+- Optional knowledge-base suggestions before a visitor starts a chat.
+- Auto-open, desktop/mobile visibility, page exclusions, offsets, z-index, font scaling, reduced-motion and forced-RTL controls.
+- Shortcodes for a chat button, support status and knowledge cards.
 
-### Agent inbox
-- Live conversation list with search, status and priority filters.
-- Agent and department assignment.
-- Automatic assignment using lowest active load or round robin.
-- Low/normal/high/urgent priorities.
+### Team inbox and support operations
+- Searchable conversation inbox with status and priority filters.
 - Public replies and internal/private notes.
-- File/image attachments from agents.
-- Canned replies.
-- Conversation tags.
-- Custom key/value conversation fields.
-- Visitor typing status.
-- Email transcript action.
-- SLA breach indicators.
+- Agent/department assignment and automatic assignment.
+- Tags, canned replies and structured conversation data.
+- Transcript email, attachments, SLA indicators and visitor typing state.
+- Bulk status, priority, agent and department actions for selected conversations.
+- Saved inbox views for reusable filters.
+- Customer segments for reusable grouping/reporting definitions.
+- Visitor blocking with optional expiry; a block can persist through hashed email/network identifiers without storing raw IP addresses.
 
-### Dashboard and operations
-- Open, pending, unread, online visitor, daily activity and SLA counters.
-- Desktop browser notifications while the WordPress admin page is open.
-- Separate Tags, Automation, Analytics, Audit & Export and Settings screens.
-- CSV conversation export.
-- Audit event viewer.
-- 7/30/90-day analytics.
-- Average first-response time, CSAT and SLA-breach metrics.
+### Team and access management
+- Dedicated **N8 LiveChat Agent** and **N8 LiveChat Manager** WordPress roles.
+- Administrators can onboard existing WordPress users as Agent, Manager or No LiveChat Access.
+- Per-agent title, avatar, availability, workload limit, languages, skills and notification preferences.
+- Capability-based REST permissions for chat, settings, team, routing, custom fields, integrations, privacy, knowledge and diagnostics.
 
-### Automation
-- Configurable business hours.
-- Automatic assignment to WordPress users with the LiveChat reply capability.
-- Dedicated `N8 LiveChat Agent` WordPress role.
-- First-response and resolution SLA targets.
-- Five-minute SLA monitoring via WP-Cron.
-- Automatic urgent priority on SLA breach.
-- Optional admin escalation email.
-- Optional new-message email notifications.
+### Routing and automation
+- Existing business hours, round-robin/load assignment and SLA monitoring remain intact.
+- Conditional routing rules can match source, department, email domain, URL, referrer, visitor name and business-hours state.
+- Routing actions can set priority, status, agent, department and tag; rules can stop or continue processing.
+- Five-minute automation loop and daily maintenance remain WP-Cron compatible.
 
-### n8n / CRM / integrations
-- Signed outbound webhooks.
-- HMAC-SHA256 signature in `X-N8LC-Signature`.
-- Events for conversation creation, messages, conversation updates and CSAT.
-- Existing WordPress actions remain available for custom integrations.
+### Knowledge base
+- Native WordPress Knowledge Article content type with revisions, author and topics.
+- Public read-only knowledge REST endpoint for published articles.
+- Optional pre-chat knowledge suggestions in the widget.
+- `[n8_livechat_kb]` shortcode for on-page knowledge cards.
 
-### Security and privacy
-- Visitor tokens are stored as SHA-256 hashes.
-- IP addresses are stored only as salted HMAC hashes.
-- Public session/message/upload rate limits.
-- WordPress REST nonce and capability checks for protected routes.
-- Upload type and size allowlist.
-- Upload validation extension hook: `n8lc_validate_upload`.
-- Webhook delivery uses WordPress safe HTTP requests.
-- Private notes never appear in visitor message APIs.
-- Conservative uninstall: data is preserved unless the administrator explicitly enables deletion.
+### Integrations
+- Existing signed webhook configuration remains supported.
+- Multiple admin-authorized integration endpoints can be configured for webhook, n8n, CRM or custom HTTPS receivers.
+- Supported outbound events: conversation creation, message creation, conversation update and CSAT submission.
+- Per-integration HMAC-SHA256 signing secret.
+- Integration secrets are masked in REST responses and are never sent to visitors.
+- No external integration request is made until an administrator explicitly configures and enables an endpoint.
 
-## Visual customizer (v0.3)
-- 8 selectable inline-SVG launcher icons: message, chat, headset, support, sparkle, bot, phone and mail.
-- Circle, rounded-square and pill launchers with optional text label.
-- Indigo, ocean, emerald, violet, rose, sunset, midnight and custom color themes.
-- Greeting teaser bubble with configurable delay and auto-hide.
-- Support avatar/name, response-time subtitle and online/away presence.
-- Configurable launcher size, panel width/height and corner radius.
-- Pulse, float, glow or no animation.
-- Unread badge, optional Web Audio reply chime and improved mobile full-screen layout.
-- Dedicated WordPress visual customizer with a live website preview.
+### Privacy, security and abuse controls
+- Visitor session tokens are stored as SHA-256 hashes.
+- IP addresses are represented by salted HMAC hashes rather than raw IP storage.
+- Public endpoint rate limits and server-side visitor-session verification.
+- Admin endpoints use WordPress capabilities and REST nonces.
+- Private notes are excluded from visitor APIs.
+- WordPress personal-data exporter and eraser callbacks for visitor profiles and chat data.
+- Suggested privacy-policy text through WordPress privacy tools.
+- Optional, disabled-by-default automatic anonymization of old closed visitors.
+- Optional, disabled-by-default deletion of old messages from closed conversations.
+- Integration endpoints require HTTPS and use WordPress safe HTTP requests.
+- File uploads retain the existing MIME/size allowlist and validation hook.
 
-## Installation
-1. Download `n8-livechat-pro-0.3.0.zip`.
-2. In WordPress go to **Plugins -> Add New Plugin -> Upload Plugin**.
-3. Upload the ZIP and activate **N8 LiveChat Pro**.
-4. Open **N8 LiveChat -> Settings** and configure the widget.
-5. Open **N8 LiveChat -> Automation** for business hours, assignment, SLA and webhooks.
-6. Create or edit WordPress users and assign the **N8 LiveChat Agent** role as needed.
-7. Use **N8 LiveChat -> Inbox** to answer visitors.
+### Dashboard and diagnostics
+- Existing dashboard, analytics, audit/export and visual customizer remain available.
+- New **N8 LiveChat -> Platform** workspace for Team, Routing, Saved Views, Segments, Custom Fields, Integrations, Blocks, Widget Experience and Diagnostics.
+- Site Health tests for professional schema and scheduled jobs.
+- Environment diagnostics expose operational state without exposing filesystem upload paths to regular support users.
+
+### Visual customization retained from v0.3
+- 8 inline-SVG launcher icons.
+- Circle, rounded-square and pill launcher styles with optional label.
+- Theme presets plus custom accent color.
+- Greeting delay/auto-hide, support avatar/name/subtitle, launcher size, panel dimensions and corner radius.
+- Pulse, float, glow or disabled animation.
+- Live visual preview in WordPress admin.
+
+## Upgrade safety
+
+v0.4 is additive by design:
+
+- The existing v0.3 core tables, REST routes and established chat behavior remain compatibility boundaries.
+- Professional features use separate tables/options and hooks where practical.
+- Automatic privacy deletion/anonymization is **off by default**.
+- Existing plugin data is preserved on uninstall unless **Delete data on uninstall** is explicitly enabled.
+- RevertShield's own plugin code remains outside the `n8-livechat-pro/` folder and is not part of this LiveChat release.
+
+## Installation / upgrade
+1. Back up the WordPress database and site files before a production upgrade.
+2. Upload `n8-livechat-pro-0.4.0.zip` from **Plugins -> Add New Plugin -> Upload Plugin**.
+3. When replacing an earlier N8 LiveChat Pro version, use WordPress's replace-current-plugin flow.
+4. Open **N8 LiveChat -> Settings** for existing chat/visual settings.
+5. Open **N8 LiveChat -> Platform** for team, routing, fields, integrations, privacy behavior and diagnostics.
+6. Open **N8 LiveChat -> Automation** for business hours, assignment, SLA and legacy signed webhook settings.
 
 ## Requirements
 - WordPress 6.5+
 - PHP 7.4+
+- JavaScript enabled for the visitor widget and admin applications
 
-## Main hooks
+## Main extension hooks
 - `n8lc_conversation_created`
 - `n8lc_message_created`
 - `n8lc_conversation_updated`
@@ -98,10 +114,12 @@ N8 LiveChat Pro is a standalone WordPress live chat and support-inbox plugin. Ve
 - `n8lc_validate_upload`
 - `n8lc_allowed_upload_mimes`
 
-## Notes
-- Real WebSockets require a persistent socket service or compatible hosting layer. This build intentionally retains reliable REST polling so it works on ordinary WordPress hosting.
-- File uploads are restricted but this plugin does not bundle a malware scanning engine. Sites that require scanning should connect a scanner through `n8lc_validate_upload`.
+## Operational notes
+- The default transport remains REST polling so the plugin works on conventional WordPress/PHP hosting. A true WebSocket/SSE service requires a persistent server process or external realtime layer.
+- The plugin restricts uploads but does not bundle a malware-scanning engine. High-risk environments should connect a scanner through `n8lc_validate_upload`.
 - WordPress email delivery depends on the site's mail configuration.
+- CRM/n8n/custom endpoints are generic signed HTTPS integrations; vendor-specific OAuth flows are not bundled in this release.
+- Production rollouts should be tested on a staging site with the site's actual theme, caching/CDN, security plugins and mail/upload configuration.
 
 ## License
 GPL-2.0-or-later.

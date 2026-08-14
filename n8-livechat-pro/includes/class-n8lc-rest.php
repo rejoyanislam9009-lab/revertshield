@@ -250,6 +250,37 @@ final class N8LC_REST {
         $name  = sanitize_text_field( (string) $request->get_param( 'name' ) );
         $email = sanitize_email( (string) $request->get_param( 'email' ) );
         $phone = sanitize_text_field( (string) $request->get_param( 'phone' ) );
+        $custom_data = N8LC_Security::sanitize_custom_data( $request->get_param( 'custom_data' ) );
+        $platform_settings = class_exists( 'N8LC_Platform' ) ? N8LC_Platform::settings() : array();
+        if ( ! empty( $platform_settings['prechat_consent_enabled'] ) && ! empty( $platform_settings['prechat_consent_required'] ) && ! rest_sanitize_boolean( $request->get_param( 'consent' ) ) ) {
+            return new WP_Error( 'n8lc_consent_required', __( 'Consent is required to start this chat.', 'n8-livechat-pro' ), array( 'status' => 400 ) );
+        }
+        if ( class_exists( 'N8LC_Platform' ) && ! empty( $platform_settings['enable_custom_fields'] ) ) {
+            foreach ( N8LC_Platform::instance()->active_custom_fields( 'prechat' ) as $field ) {
+                if ( empty( $field['required'] ) ) {
+                    continue;
+                }
+                $value = isset( $custom_data[ $field['key'] ] ) ? trim( (string) $custom_data[ $field['key'] ] ) : '';
+                $missing = '' === $value;
+                if ( 'checkbox' === $field['type'] ) {
+                    $missing = ! in_array( strtolower( $value ), array( '1', 'true', 'yes', 'on' ), true );
+                }
+                if ( $missing ) {
+                    return new WP_Error( 'n8lc_required_field', sprintf( __( '%s is required.', 'n8-livechat-pro' ), $field['label'] ), array( 'status' => 400 ) );
+                }
+                if ( '' !== $value ) {
+                    if ( 'email' === $field['type'] && ! is_email( $value ) ) {
+                        return new WP_Error( 'n8lc_invalid_custom_field', sprintf( __( '%s must be a valid email address.', 'n8-livechat-pro' ), $field['label'] ), array( 'status' => 400 ) );
+                    }
+                    if ( 'number' === $field['type'] && ! is_numeric( $value ) ) {
+                        return new WP_Error( 'n8lc_invalid_custom_field', sprintf( __( '%s must be a number.', 'n8-livechat-pro' ), $field['label'] ), array( 'status' => 400 ) );
+                    }
+                    if ( 'select' === $field['type'] && ! in_array( $value, (array) $field['options'], true ) ) {
+                        return new WP_Error( 'n8lc_invalid_custom_field', sprintf( __( '%s contains an invalid option.', 'n8-livechat-pro' ), $field['label'] ), array( 'status' => 400 ) );
+                    }
+                }
+            }
+        }
         if ( ! empty( $settings['require_email'] ) && ! is_email( $email ) ) {
             return new WP_Error( 'n8lc_email_required', __( 'A valid email address is required.', 'n8-livechat-pro' ), array( 'status' => 400 ) );
         }
@@ -259,9 +290,11 @@ final class N8LC_REST {
         $conversation_public_id = wp_generate_uuid4();
         $now                    = current_time( 'mysql' );
         $metadata               = array(
-            'timezone' => sanitize_text_field( (string) $request->get_param( 'timezone' ) ),
-            'language' => sanitize_text_field( (string) $request->get_param( 'language' ) ),
-            'screen'   => sanitize_text_field( (string) $request->get_param( 'screen' ) ),
+            'timezone'      => sanitize_text_field( (string) $request->get_param( 'timezone' ) ),
+            'language'      => sanitize_text_field( (string) $request->get_param( 'language' ) ),
+            'screen'        => sanitize_text_field( (string) $request->get_param( 'screen' ) ),
+            'custom_fields' => $custom_data,
+            'consent'       => rest_sanitize_boolean( $request->get_param( 'consent' ) ) ? 1 : 0,
         );
         $user_agent = ! empty( $_SERVER['HTTP_USER_AGENT'] ) ? sanitize_text_field( wp_unslash( $_SERVER['HTTP_USER_AGENT'] ) ) : '';
 
@@ -309,10 +342,11 @@ final class N8LC_REST {
                 'priority'      => 'normal',
                 'subject'       => sanitize_text_field( (string) $request->get_param( 'subject' ) ),
                 'source'        => 'widget',
+                'custom_data'   => ! empty( $custom_data ) ? wp_json_encode( $custom_data ) : null,
                 'created_at'    => $now,
                 'updated_at'    => $now,
             ),
-            array( '%s', '%d', '%d', '%s', '%s', '%s', '%s', '%s', '%s' )
+            array( '%s', '%d', '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s' )
         );
         $conversation_id = (int) $wpdb->insert_id;
         if ( ! $conversation_id ) {

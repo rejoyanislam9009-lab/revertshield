@@ -212,6 +212,29 @@
     scrollBottom();
   }
 
+  function customFieldsHtml() {
+    var fields = Array.isArray(cfg.customFields) ? cfg.customFields : [];
+    return fields.map(function (f) {
+      var key = String(f.key || '').replace(/[^a-z0-9_\-]/gi, '');
+      if (!key) return '';
+      var label = esc(f.label || key) + (f.required ? ' *' : '');
+      var req = f.required ? ' required' : '';
+      var ph = f.placeholder ? ' placeholder="' + esc(f.placeholder) + '"' : '';
+      if (f.type === 'textarea') return '<label>' + label + '<textarea name="n8lc_custom_' + esc(key) + '" maxlength="1000"' + req + ph + '></textarea></label>';
+      if (f.type === 'select') {
+        return '<label>' + label + '<select name="n8lc_custom_' + esc(key) + '"' + req + '><option value="">Select…</option>' + (f.options || []).map(function (o) { return '<option value="' + esc(o) + '">' + esc(o) + '</option>'; }).join('') + '</select></label>';
+      }
+      if (f.type === 'checkbox') return '<label class="n8lc-dynamic-field-checkbox"><input name="n8lc_custom_' + esc(key) + '" type="checkbox" value="1"' + req + '><span>' + label + '</span></label>';
+      var type = ['email','tel','number'].indexOf(f.type) !== -1 ? f.type : 'text';
+      return '<label>' + label + '<input name="n8lc_custom_' + esc(key) + '" type="' + type + '" maxlength="190"' + req + ph + '></label>';
+    }).join('');
+  }
+
+  function consentHtml() {
+    if (!cfg.consentEnabled) return '';
+    return '<label class="n8lc-consent"><input name="n8lc_consent" type="checkbox" value="1" ' + (cfg.consentRequired ? 'required' : '') + '><span>' + esc(cfg.consentText || 'I agree to the use of my details for this support request.') + '</span></label>';
+  }
+
   function startForm() {
     var department = '';
     if (cfg.departments && cfg.departments.length > 1) {
@@ -223,7 +246,7 @@
     return '<div class="n8lc-start"><div class="n8lc-start-hero"><div class="n8lc-start-avatars">' + avatarHtml() + '<span class="n8lc-hero-status"></span></div><h3>How can we help?</h3><p>' + esc(cfg.welcomeText || 'Start a conversation with our team. We are here to help.') + '</p></div>' + away + '<form class="n8lc-start-form">' +
       '<div class="n8lc-fields"><label>' + esc(cfg.i18n.name) + '<input name="name" type="text" autocomplete="name" maxlength="190" placeholder="Jane Doe"></label>' +
       '<label>' + esc(cfg.i18n.email) + (cfg.requireEmail ? ' *' : '') + '<input name="email" type="email" autocomplete="email" maxlength="190" placeholder="you@example.com" ' + (cfg.requireEmail ? 'required' : '') + '></label>' +
-      '<label>' + esc(cfg.i18n.phone) + '<input name="phone" type="text" autocomplete="tel" maxlength="80" placeholder="Optional"></label>' + department + '</div>' +
+      '<label>' + esc(cfg.i18n.phone) + '<input name="phone" type="text" autocomplete="tel" maxlength="80" placeholder="Optional"></label>' + department + customFieldsHtml() + '</div>' + consentHtml() +
       '<div class="n8lc-form-error" role="alert"></div><button type="submit" class="n8lc-primary"><span>' + esc(cfg.i18n.start) + '</span>' + icon('send') + '</button></form></div>';
   }
 
@@ -238,11 +261,20 @@
     button.disabled = true;
     error.textContent = '';
 
+    var customData = {};
+    (Array.isArray(cfg.customFields) ? cfg.customFields : []).forEach(function (f) {
+      var key = String(f.key || '').replace(/[^a-z0-9_\-]/gi, '');
+      if (!key) return;
+      var formKey = 'n8lc_custom_' + key;
+      customData[key] = f.type === 'checkbox' ? (data.get(formKey) ? '1' : '0') : (data.get(formKey) || '');
+    });
+
     api('session', { method: 'POST', body: {
       name: data.get('name') || '', email: data.get('email') || '', phone: data.get('phone') || '',
       department_id: data.get('department_id') || 0, url: window.location.href, referrer: document.referrer,
       timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || '', language: navigator.language || '',
-      screen: window.screen ? window.screen.width + 'x' + window.screen.height : ''
+      screen: window.screen ? window.screen.width + 'x' + window.screen.height : '',
+      custom_data: customData, consent: data.get('n8lc_consent') ? true : false
     }}).then(function (session) {
       state.session = session;
       state.availability = session.availability || state.availability;
