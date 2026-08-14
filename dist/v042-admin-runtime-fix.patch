@@ -17,20 +17,23 @@ diff -ruN n8lc-v042-base/n8-livechat-pro/README.md n8lc-v042-work/n8-livechat-pr
  5. Open **N8 LiveChat -> Platform** for team, routing, fields, integrations, privacy behavior and diagnostics.
 diff -ruN n8lc-v042-base/n8-livechat-pro/includes/class-n8lc-admin.php n8lc-v042-work/n8-livechat-pro/includes/class-n8lc-admin.php
 --- n8lc-v042-base/n8-livechat-pro/includes/class-n8lc-admin.php	2026-08-14 13:16:17.000000000 +0000
-+++ n8lc-v042-work/n8-livechat-pro/includes/class-n8lc-admin.php	2026-08-14 17:57:21.835073810 +0000
-@@ -62,7 +62,7 @@
++++ n8lc-v042-work/n8-livechat-pro/includes/class-n8lc-admin.php	2026-08-14 17:58:43.593279482 +0000
+@@ -62,7 +62,10 @@
          }
  
          $agents       = array();
 -        foreach ( get_users( array( 'fields' => array( 'ID', 'display_name', 'user_email' ) ) ) as $user ) {
 +        foreach ( get_users( array( 'fields' => 'all' ) ) as $user ) {
++            if ( ! ( $user instanceof WP_User ) ) {
++                continue;
++            }
              if ( user_can( $user, 'n8lc_reply_chat' ) || user_can( $user, 'manage_options' ) ) {
                  $agents[] = array(
                      'id'    => (int) $user->ID,
 diff -ruN n8lc-v042-base/n8-livechat-pro/includes/class-n8lc-platform.php n8lc-v042-work/n8-livechat-pro/includes/class-n8lc-platform.php
 --- n8lc-v042-base/n8-livechat-pro/includes/class-n8lc-platform.php	2026-08-14 13:16:17.000000000 +0000
-+++ n8lc-v042-work/n8-livechat-pro/includes/class-n8lc-platform.php	2026-08-14 17:57:21.836594075 +0000
-@@ -659,7 +659,7 @@
++++ n8lc-v042-work/n8-livechat-pro/includes/class-n8lc-platform.php	2026-08-14 17:58:43.595180980 +0000
+@@ -659,10 +659,13 @@
      public function rest_agents() {
          global $wpdb;
          $table = self::table( 'agent_profiles' );
@@ -39,6 +42,12 @@ diff -ruN n8lc-v042-base/n8-livechat-pro/includes/class-n8lc-platform.php n8lc-v
          $items = array();
          $can_onboard = current_user_can( 'manage_options' );
          foreach ( $users as $user ) {
++            if ( ! ( $user instanceof WP_User ) ) {
++                continue;
++            }
+             $is_agent   = in_array( 'n8_livechat_agent', (array) $user->roles, true );
+             $is_manager = in_array( 'n8_livechat_manager', (array) $user->roles, true );
+             $is_admin   = user_can( $user, 'manage_options' );
 diff -ruN n8lc-v042-base/n8-livechat-pro/n8-livechat-pro.php n8lc-v042-work/n8-livechat-pro/n8-livechat-pro.php
 --- n8lc-v042-base/n8-livechat-pro/n8-livechat-pro.php	2026-08-14 13:16:17.000000000 +0000
 +++ n8lc-v042-work/n8-livechat-pro/n8-livechat-pro.php	2026-08-14 17:57:21.838093975 +0000
@@ -70,7 +79,9 @@ diff -ruN n8lc-v042-base/n8-livechat-pro/readme.txt n8lc-v042-work/n8-livechat-p
 -Stable tag: 0.4.1
 +Stable tag: 0.4.2
  License: GPLv2 or later
-@@ -37,6 +37,10 @@
+ 
+ Professional WordPress live chat and support operations with team roles, routing, attachments, typing, custom fields, knowledge, SLA, CSAT, privacy tools, analytics, audit/export and signed integrations.
+@@ -37,6 +37,11 @@
  The plugin enforces its upload allowlist and size controls but does not bundle a malware engine. Security products can integrate through the `n8lc_validate_upload` hook.
  
  == Changelog ==
@@ -78,6 +89,7 @@ diff -ruN n8lc-v042-base/n8-livechat-pro/readme.txt n8lc-v042-work/n8-livechat-p
 +* Fixed a WordPress admin fatal caused by passing partial stdClass user-query rows into user_can().
 +* LiveChat dashboard, inbox, settings, team and platform pages now request full WP_User objects before capability checks.
 +* Added an admin-runtime regression gate to prevent this capability-check crash from returning.
++
  
  = 0.4.1 =
  * Recovery-safe bootstrap: runtime module failures no longer take down wp-admin.
