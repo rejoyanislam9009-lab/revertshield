@@ -1,0 +1,57 @@
+name: Publish N8 LiveChat Pro v0.2 source
+
+on:
+  push:
+    branches:
+      - feature/n8-livechat-pro-v0.2
+    paths:
+      - 'dist/n8-livechat-pro-0.2.0.zip'
+      - '.github/workflows/n8-livechat-pro-v02-publish.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  unpack-validate-publish:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout v0.2 branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup PHP 7.4
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '7.4'
+          coverage: none
+
+      - name: Expand installable release
+        run: |
+          rm -rf /tmp/n8lc-release n8-livechat-pro
+          mkdir -p /tmp/n8lc-release
+          unzip -q dist/n8-livechat-pro-0.2.0.zip -d /tmp/n8lc-release
+          test -f /tmp/n8lc-release/n8-livechat-pro/n8-livechat-pro.php
+          cp -a /tmp/n8lc-release/n8-livechat-pro ./n8-livechat-pro
+
+      - name: Validate PHP and JavaScript syntax
+        run: |
+          find n8-livechat-pro -type f -name '*.php' -print0 | xargs -0 -n1 php -l
+          node --check n8-livechat-pro/assets/js/admin.js
+          node --check n8-livechat-pro/assets/js/widget.js
+
+      - name: Verify release version
+        run: grep -F 'Version:     0.2.0' n8-livechat-pro/n8-livechat-pro.php
+
+      - name: Commit expanded source
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add n8-livechat-pro
+          if git diff --cached --quiet; then
+            echo 'Source tree already matches the v0.2 release.'
+            exit 0
+          fi
+          git commit -m 'Publish N8 LiveChat Pro 0.2.0 source'
+          git push
