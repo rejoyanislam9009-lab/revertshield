@@ -49,10 +49,18 @@ final class N8LC_Admin {
             return;
         }
 
-        wp_enqueue_style( 'n8lc-admin', N8LC_URL . 'assets/css/admin.css', array(), N8LC_VERSION );
-        wp_enqueue_script( 'n8lc-admin', N8LC_URL . 'assets/js/admin.js', array(), N8LC_VERSION, true );
-
         $current_page = isset( $_GET['page'] ) ? sanitize_key( wp_unslash( $_GET['page'] ) ) : 'n8-livechat';
+        wp_enqueue_style( 'n8lc-admin', N8LC_URL . 'assets/css/admin.css', array(), N8LC_VERSION );
+
+        if ( 'n8-livechat-settings' === $current_page ) {
+            wp_enqueue_style( 'n8lc-admin-customizer', N8LC_URL . 'assets/css/customizer-v03.css', array( 'n8lc-admin' ), N8LC_VERSION );
+            wp_enqueue_script( 'n8lc-admin-customizer', N8LC_URL . 'assets/js/customizer-v03.js', array(), N8LC_VERSION, true );
+            $script_handle = 'n8lc-admin-customizer';
+        } else {
+            wp_enqueue_script( 'n8lc-admin', N8LC_URL . 'assets/js/admin.js', array(), N8LC_VERSION, true );
+            $script_handle = 'n8lc-admin';
+        }
+
         $agents       = array();
         foreach ( get_users( array( 'fields' => array( 'ID', 'display_name', 'user_email' ) ) ) as $user ) {
             if ( user_can( $user, 'n8lc_reply_chat' ) || user_can( $user, 'manage_options' ) ) {
@@ -65,7 +73,7 @@ final class N8LC_Admin {
         }
 
         wp_localize_script(
-            'n8lc-admin',
+            $script_handle,
             'N8LCAdmin',
             array(
                 'restRoot'      => esc_url_raw( rest_url( N8LC_REST::NS . '/' ) ),
@@ -100,7 +108,7 @@ final class N8LC_Admin {
             'n8-livechat-automation'  => __( 'Automation & SLA', 'n8-livechat-pro' ),
             'n8-livechat-analytics'   => __( 'Analytics', 'n8-livechat-pro' ),
             'n8-livechat-audit'       => __( 'Audit & Export', 'n8-livechat-pro' ),
-            'n8-livechat-settings'    => __( 'Settings', 'n8-livechat-pro' ),
+            'n8-livechat-settings'    => __( 'Widget Customizer & Settings', 'n8-livechat-pro' ),
         );
         $title = isset( $titles[ $page ] ) ? $titles[ $page ] : __( 'N8 LiveChat', 'n8-livechat-pro' );
 
