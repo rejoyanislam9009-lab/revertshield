@@ -103,6 +103,52 @@ jobs:
       - name: Run live WooCommerce Store API integration assertions
         if: matrix.wordpress == 'latest'
         run: wp eval-file "$GITHUB_WORKSPACE/tests/runtime-woocommerce-live.php" --path=/tmp/revertshield-wp
+      - name: Test plugin lifecycle and single-site uninstall policies
+        run: |
+          set -euo pipefail
+          wp plugin deactivate revertshield --path=/tmp/revertshield-wp
+          if wp plugin is-active revertshield --path=/tmp/revertshield-wp; then
+            echo "RevertShield remained active after deactivation."
+            exit 1
+          fi
+          wp plugin activate revertshield --path=/tmp/revertshield-wp
+          wp plugin is-active revertshield --path=/tmp/revertshield-wp
+
+          prefix="$(wp db prefix --path=/tmp/revertshield-wp)"
+          uploads="$(wp eval 'echo wp_upload_dir(null, false)["basedir"];' --path=/tmp/revertshield-wp)"
+          storage="${uploads%/}/revertshield"
+
+          wp plugin uninstall revertshield --deactivate --path=/tmp/revertshield-wp
+          if wp plugin is-installed revertshield --path=/tmp/revertshield-wp; then
+            echo "RevertShield files remained installed after uninstall."
+            exit 1
+          fi
+          wp option get revertshield_settings --path=/tmp/revertshield-wp >/dev/null
+          for suffix in changes health_runs snapshots; do
+            table="${prefix}revertshield_${suffix}"
+            found="$(wp db query "SHOW TABLES LIKE '${table}';" --skip-column-names --path=/tmp/revertshield-wp | tr -d '\r')"
+            test "$found" = "$table"
+          done
+          test -d "$storage"
+
+          unzip -q /tmp/revertshield.zip -d /tmp/revertshield-wp/wp-content/plugins
+          wp plugin activate revertshield --path=/tmp/revertshield-wp
+          wp option patch update revertshield_settings delete_on_uninstall 1 --path=/tmp/revertshield-wp
+          wp plugin uninstall revertshield --deactivate --path=/tmp/revertshield-wp
+          for suffix in changes health_runs snapshots; do
+            table="${prefix}revertshield_${suffix}"
+            found="$(wp db query "SHOW TABLES LIKE '${table}';" --skip-column-names --path=/tmp/revertshield-wp | tr -d '\r')"
+            test -z "$found"
+          done
+          if wp option get revertshield_settings --path=/tmp/revertshield-wp >/dev/null 2>&1; then
+            echo "RevertShield settings remained after opt-in uninstall cleanup."
+            exit 1
+          fi
+          if wp option get revertshield_schema_version --path=/tmp/revertshield-wp >/dev/null 2>&1; then
+            echo "RevertShield schema version remained after opt-in uninstall cleanup."
+            exit 1
+          fi
+          test ! -e "$storage"
 
   multisite-runtime:
     name: WordPress ${{ matrix.wordpress }} / PHP ${{ matrix.php }} Multisite safety
@@ -153,6 +199,35 @@ jobs:
         run: wp site create --slug=second --title="RevertShield Second Site" --email=test@example.com --path=/tmp/revertshield-ms
       - name: Run Multisite safety assertions
         run: wp eval-file "$GITHUB_WORKSPACE/tests/runtime-multisite.php" --path=/tmp/revertshield-ms
+      - name: Test Multisite lifecycle and fail-closed uninstall retention
+        run: |
+          set -euo pipefail
+          second_url="$(wp site list --field=url --path=/tmp/revertshield-ms | tail -n 1)"
+          main_prefix="$(wp eval 'global $wpdb; echo $wpdb->prefix;' --path=/tmp/revertshield-ms)"
+          second_prefix="$(wp eval 'global $wpdb; echo $wpdb->prefix;' --url="$second_url" --path=/tmp/revertshield-ms)"
+
+          wp plugin deactivate revertshield --network --path=/tmp/revertshield-ms
+          if wp plugin is-active revertshield --network --path=/tmp/revertshield-ms; then
+            echo "RevertShield remained network-active after deactivation."
+            exit 1
+          fi
+          wp plugin activate revertshield --network --path=/tmp/revertshield-ms
+          wp plugin is-active revertshield --network --path=/tmp/revertshield-ms
+
+          wp option patch update revertshield_settings delete_on_uninstall 1 --path=/tmp/revertshield-ms
+          wp option patch update revertshield_settings delete_on_uninstall 1 --url="$second_url" --path=/tmp/revertshield-ms
+          wp plugin deactivate revertshield --network --path=/tmp/revertshield-ms
+          wp plugin uninstall revertshield --path=/tmp/revertshield-ms
+
+          for prefix in "$main_prefix" "$second_prefix"; do
+            for suffix in changes health_runs snapshots; do
+              table="${prefix}revertshield_${suffix}"
+              found="$(wp db query "SHOW TABLES LIKE '${table}';" --skip-column-names --path=/tmp/revertshield-ms | tr -d '\r')"
+              test "$found" = "$table"
+            done
+          done
+          wp option get revertshield_settings --path=/tmp/revertshield-ms >/dev/null
+          wp option get revertshield_settings --url="$second_url" --path=/tmp/revertshield-ms >/dev/null
 
   plugin-check:
     name: Official WordPress Plugin Check
