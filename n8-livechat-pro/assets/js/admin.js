@@ -194,7 +194,8 @@
     el.innerHTML = inbox.conversations.map(function (c) {
       var active = Number(inbox.selected) === Number(c.id) ? ' is-active' : '';
       var warn = Number(c.sla_breached) ? '<span class="n8lc-mini-alert">SLA</span>' : '';
-      return '<button class="n8lc-conversation' + active + '" data-id="' + Number(c.id) + '"><div><strong>' + esc(c.visitor_name || 'Anonymous') + '</strong><span>' + warn + (Number(c.unread_agent) ? '<span class="n8lc-unread">' + Number(c.unread_agent) + '</span>' : '') + '</span></div><p>' + esc(c.subject || c.visitor_email || 'New conversation') + '</p>' + tagPills(c.tags) + '<small>' + badge(c.status) + ' · ' + esc(c.priority) + ' · ' + esc(fmtDate(c.last_message_at || c.created_at)) + '</small></button>';
+      var csat = Number(c.csat_rating || 0) ? '<span class="n8lc-mini-csat">' + ['','😞','🙁','😐','🙂','😍'][Number(c.csat_rating)] + ' ' + Number(c.csat_rating) + '/5</span>' : '';
+      return '<button class="n8lc-conversation' + active + '" data-id="' + Number(c.id) + '"><div><strong>' + esc(c.visitor_name || 'Anonymous') + '</strong><span>' + warn + csat + (Number(c.unread_agent) ? '<span class="n8lc-unread">' + Number(c.unread_agent) + '</span>' : '') + '</span></div><p>' + esc(c.subject || c.visitor_email || 'New conversation') + '</p>' + tagPills(c.tags) + '<small>' + badge(c.status) + ' · ' + esc(c.priority) + ' · ' + esc(fmtDate(c.last_message_at || c.created_at)) + '</small></button>';
     }).join('');
     Array.prototype.forEach.call(el.querySelectorAll('.n8lc-conversation'), function (btn) {
       btn.addEventListener('click', function () {
@@ -229,11 +230,15 @@
     });
   }
 
+  function visitorTypingHtml(active) {
+    return active ? '<span class="n8lc-admin-typing-dots"><i></i><i></i><i></i></span><strong>Visitor is typing…</strong>' : '';
+  }
+
   function loadThreadState() {
     if (!inbox.selected || cfg.page !== 'n8-livechat-inbox') return;
     api('admin/conversations/' + inbox.selected + '/state').then(function (s) {
       var el = document.getElementById('n8lc-visitor-typing');
-      if (el) el.textContent = s.visitor_typing ? 'Visitor is typing…' : '';
+      if (el) el.innerHTML = visitorTypingHtml(!!s.visitor_typing);
     }).catch(function () {});
   }
 
@@ -282,7 +287,7 @@
     var el = document.getElementById('n8lc-thread');
     el.innerHTML = '<div class="n8lc-thread-head"><div><h2>' + esc(c.visitor_name || 'Anonymous') + '</h2><p>' + esc(c.visitor_email || '') + (c.visitor_phone ? ' · ' + esc(c.visitor_phone) : '') + '</p><div class="n8lc-thread-meta">' + sla + ' ' + tagPills(c.tags) + '</div></div><div class="n8lc-thread-actions"><select id="n8lc-status-edit"><option value="open">Open</option><option value="pending">Pending</option><option value="closed">Closed</option></select><select id="n8lc-priority-edit"><option value="low">Low</option><option value="normal">Normal</option><option value="high">High</option><option value="urgent">Urgent</option></select><select id="n8lc-agent-edit">' + agentOptions + '</select><select id="n8lc-dept-edit">' + deptOptions + '</select></div></div>' +
       '<div class="n8lc-thread-body" id="n8lc-thread-body">' + messages + '</div>' +
-      '<div id="n8lc-visitor-typing" class="n8lc-typing-line">' + (stateData && stateData.visitor_typing ? 'Visitor is typing…' : '') + '</div>' +
+      '<div id="n8lc-visitor-typing" class="n8lc-typing-line">' + visitorTypingHtml(!!(stateData && stateData.visitor_typing)) + '</div>' +
       '<details class="n8lc-context"><summary>Conversation context, tags & custom fields</summary><div class="n8lc-context-grid"><div><strong>Tags</strong><div id="n8lc-thread-tags" class="n8lc-tag-picker">' + tagChecks + '</div><button type="button" class="button" id="n8lc-save-tags">Save tags</button></div><div><strong>Custom fields</strong><textarea id="n8lc-custom-data" rows="5" placeholder="order_id=12345\nplan=pro">' + esc(customDataLines(c.custom_data)) + '</textarea><button type="button" class="button" id="n8lc-save-custom">Save fields</button></div></div></details>' +
       '<div class="n8lc-thread-compose"><div class="n8lc-compose-top"><select id="n8lc-canned-select">' + cannedOptions + '</select><label><input type="checkbox" id="n8lc-private-note"> Private note</label><button type="button" class="button" id="n8lc-send-transcript">Email transcript</button></div><textarea id="n8lc-reply-text" rows="3" maxlength="5000" placeholder="Write a reply…"></textarea><div class="n8lc-compose-bottom"><div><input type="file" id="n8lc-agent-file" class="n8lc-hidden-file"><button type="button" class="button" id="n8lc-attach-file">📎 Attach</button><span id="n8lc-reply-status"></span></div><button class="button button-primary" id="n8lc-send-reply">Send reply</button></div></div>';
 

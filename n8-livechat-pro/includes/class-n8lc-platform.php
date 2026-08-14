@@ -71,6 +71,9 @@ final class N8LC_Platform {
             'widget_reduce_motion'       => 0,
             'widget_rtl'                 => 0,
             'widget_page_exclusions'     => '',
+            'chat_auto_close_idle'        => 1,
+            'chat_idle_timeout_minutes'   => 15,
+            'chat_show_session_timer'     => 1,
             'prechat_consent_enabled'    => 0,
             'prechat_consent_required'   => 0,
             'prechat_consent_text'       => 'I agree that my details may be used to respond to this support request.',
@@ -509,7 +512,7 @@ final class N8LC_Platform {
 
     private function sanitize_settings( array $input ) {
         $clean = array();
-        foreach ( array( 'enable_customer_profiles', 'enable_saved_views', 'enable_segments', 'enable_custom_fields', 'enable_routing_rules', 'enable_knowledge_base', 'enable_integrations', 'enable_privacy_tools', 'enable_health_checks', 'widget_auto_open', 'widget_hide_mobile', 'widget_hide_desktop', 'widget_reduce_motion', 'widget_rtl', 'widget_show_knowledge', 'prechat_consent_enabled', 'prechat_consent_required', 'privacy_auto_anonymize', 'privacy_auto_delete_messages' ) as $key ) {
+        foreach ( array( 'enable_customer_profiles', 'enable_saved_views', 'enable_segments', 'enable_custom_fields', 'enable_routing_rules', 'enable_knowledge_base', 'enable_integrations', 'enable_privacy_tools', 'enable_health_checks', 'widget_auto_open', 'widget_hide_mobile', 'widget_hide_desktop', 'widget_reduce_motion', 'widget_rtl', 'widget_show_knowledge', 'prechat_consent_enabled', 'prechat_consent_required', 'privacy_auto_anonymize', 'privacy_auto_delete_messages', 'chat_auto_close_idle', 'chat_show_session_timer' ) as $key ) {
             if ( array_key_exists( $key, $input ) ) {
                 $clean[ $key ] = rest_sanitize_boolean( $input[ $key ] ) ? 1 : 0;
             }
@@ -543,6 +546,7 @@ final class N8LC_Platform {
             'widget_font_scale'          => array( 80, 140 ),
             'privacy_retention_messages' => array( 7, 3650 ),
             'privacy_anonymize_after'    => array( 30, 3650 ),
+            'chat_idle_timeout_minutes'  => array( 5, 1440 ),
         );
         foreach ( $ranges as $key => $range ) {
             if ( array_key_exists( $key, $input ) ) {

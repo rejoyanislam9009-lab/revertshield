@@ -17,6 +17,7 @@ final class N8LC_Automation {
     public function hooks() {
         add_filter( 'cron_schedules', array( $this, 'cron_schedules' ) );
         add_action( 'n8lc_automation_tick', array( $this, 'process_sla' ) );
+        add_action( 'n8lc_automation_tick', array( $this, 'process_idle_conversations' ), 20 );
         add_action( 'n8lc_conversation_created', array( $this, 'conversation_created' ), 10, 2 );
         add_action( 'n8lc_message_created', array( $this, 'message_created' ), 10, 3 );
     }
@@ -35,11 +36,11 @@ final class N8LC_Automation {
         $settings = get_option( 'n8lc_settings', array() );
         $this->apply_sla_targets( $conversation_id, $settings );
 
-        if ( N8LC_Availability::is_open( $settings ) ) {
+        if ( N8LC_Presence::is_online( $settings ) ) {
             $this->auto_assign( $conversation_id, $settings );
         }
 
-        if ( ! N8LC_Availability::is_open( $settings ) ) {
+        if ( ! N8LC_Presence::is_online( $settings ) ) {
             global $wpdb;
             $wpdb->update(
                 N8LC_DB::table( 'conversations' ),
@@ -226,6 +227,49 @@ final class N8LC_Automation {
             if ( ! empty( $settings['escalation_email'] ) ) {
                 $this->send_escalation_email( absint( $row['id'] ) );
             }
+        }
+    }
+
+    public function process_idle_conversations() {
+        if ( ! class_exists( 'N8LC_Platform' ) ) {
+            return;
+        }
+        $platform = N8LC_Platform::settings();
+        if ( empty( $platform['chat_auto_close_idle'] ) ) {
+            return;
+        }
+
+        $minutes = max( 5, min( 1440, absint( isset( $platform['chat_idle_timeout_minutes'] ) ? $platform['chat_idle_timeout_minutes'] : 15 ) ) );
+        $cutoff  = wp_date( 'Y-m-d H:i:s', time() - ( $minutes * MINUTE_IN_SECONDS ), wp_timezone() );
+        $now     = current_time( 'mysql' );
+        global $wpdb;
+        $c = N8LC_DB::table( 'conversations' );
+        $v = N8LC_DB::table( 'visitors' );
+        $rows = $wpdb->get_results(
+            $wpdb->prepare(
+                "SELECT c.id,c.visitor_id FROM {$c} c INNER JOIN {$v} v ON v.id=c.visitor_id WHERE c.status IN ('open','pending') AND v.last_seen < %s ORDER BY v.last_seen ASC LIMIT 200",
+                $cutoff
+            ),
+            ARRAY_A
+        );
+
+        foreach ( $rows as $row ) {
+            $conversation_id = absint( $row['id'] );
+            $wpdb->update(
+                $c,
+                array( 'status' => 'closed', 'closed_at' => $now, 'updated_at' => $now ),
+                array( 'id' => $conversation_id ),
+                array( '%s', '%s', '%s' ),
+                array( '%d' )
+            );
+            delete_transient( 'n8lc_vtyping_' . $conversation_id );
+            delete_transient( 'n8lc_atyping_' . $conversation_id );
+            N8LC_DB::log_event( 'conversation_auto_closed', array(
+                'conversation_id' => $conversation_id,
+                'visitor_id'      => absint( $row['visitor_id'] ),
+                'payload'         => array( 'idle_minutes' => $minutes ),
+            ) );
+            do_action( 'n8lc_conversation_updated', $conversation_id, array( 'status' => 'closed', 'reason' => 'visitor_inactive' ) );
         }
     }
 

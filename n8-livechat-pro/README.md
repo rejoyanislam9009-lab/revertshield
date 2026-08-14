@@ -1,6 +1,6 @@
-# N8 LiveChat Pro 0.4.3
+# N8 LiveChat Pro 0.5.0
 
-N8 LiveChat Pro is a standalone WordPress live-chat and support-operations plugin. Version 0.4.3 preserves the validated v0.3 chat core and adds a professional platform layer for team management, routing, customer data, knowledge, privacy, integrations, diagnostics and deeper widget behavior.
+N8 LiveChat Pro is a standalone WordPress live-chat and support-operations plugin. Version 0.5.0 preserves the validated v0.3 chat core and adds a professional platform layer for team management, routing, customer data, knowledge, privacy, integrations, diagnostics and deeper widget behavior.
 
 ## 0.4.3 frontend visibility hotfix
 
@@ -21,6 +21,10 @@ N8 LiveChat Pro is a standalone WordPress live-chat and support-operations plugi
 ## What is included
 
 ### Visitor live chat
+- Persistent composer draft during polling and incoming agent messages, with hardened mobile text visibility.
+- Real agent-presence status: Online, Away, or Offline based on business hours plus active LiveChat agent heartbeat.
+- Live session elapsed timer and configurable abandoned-session auto-close after visitor heartbeat inactivity.
+- Five-face happiness/CSAT review with optional written feedback and a thank-you state.
 - Responsive floating widget with persistent browser sessions and message history.
 - Name, email, phone and department capture.
 - Admin-defined pre-chat custom fields: text, email, phone, number, textarea, select and checkbox.

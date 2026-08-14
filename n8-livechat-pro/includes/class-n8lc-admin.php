@@ -51,6 +51,15 @@ final class N8LC_Admin {
 
         $current_page = isset( $_GET['page'] ) ? sanitize_key( wp_unslash( $_GET['page'] ) ) : 'n8-livechat';
         wp_enqueue_style( 'n8lc-admin', N8LC_URL . 'assets/css/admin.css', array(), N8LC_VERSION );
+        wp_enqueue_script( 'n8lc-presence-v05', N8LC_URL . 'assets/js/presence-v05.js', array(), N8LC_VERSION, true );
+        wp_localize_script(
+            'n8lc-presence-v05',
+            'N8LCPresence',
+            array(
+                'restRoot' => esc_url_raw( rest_url( N8LC_REST::NS . '/' ) ),
+                'nonce'    => wp_create_nonce( 'wp_rest' ),
+            )
+        );
 
         if ( 'n8-livechat-settings' === $current_page ) {
             wp_enqueue_style( 'n8lc-admin-customizer', N8LC_URL . 'assets/css/customizer-v03.css', array( 'n8lc-admin' ), N8LC_VERSION );

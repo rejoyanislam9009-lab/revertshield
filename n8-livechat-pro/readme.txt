@@ -3,7 +3,7 @@ Contributors: n8
 Requires at least: 6.5
 Tested up to: 7.0
 Requires PHP: 7.4
-Stable tag: 0.4.3
+Stable tag: 0.5.0
 License: GPLv2 or later
 
 Professional WordPress live chat and support operations with team roles, routing, attachments, typing, custom fields, knowledge, SLA, CSAT, privacy tools, analytics, audit/export and signed integrations.
@@ -37,6 +37,15 @@ No. Generic CRM/n8n/custom integration delivery only occurs after an administrat
 The plugin enforces its upload allowlist and size controls but does not bundle a malware engine. Security products can integrate through the `n8lc_validate_upload` hook.
 
 == Changelog ==
+
+= 0.5.0 =
+* Fixed visitor composer drafts being lost during background message refresh and hardened mobile text/caret visibility.
+* Added real agent presence heartbeat so visitors see Online only while a reply-capable LiveChat user is active; otherwise Away/Offline is shown.
+* Added animated visitor/agent typing presence without replacing the active draft.
+* Added configurable abandoned-chat auto-close based on visitor heartbeat inactivity, plus an optional live session timer.
+* Replaced basic star-only CSAT with five expressive happiness faces, optional written feedback and a thank-you state.
+* Added CSAT face badges in the admin conversation list and stronger mobile composer/feedback styling.
+
 = 0.4.3 =
 * Fixed the frontend launcher not appearing because the widget mount was rendered after footer JavaScript executed.
 * The widget mount now renders on wp_body_open when available with an early wp_footer fallback.

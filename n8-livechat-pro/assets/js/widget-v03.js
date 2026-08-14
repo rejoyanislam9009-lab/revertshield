@@ -36,7 +36,16 @@
     csatRating: null,
     greetingVisible: false,
     unread: 0,
-    audioReady: false
+    audioReady: false,
+    draft: '',
+    sessionStartedAt: null,
+    sessionExpiresAt: null,
+    idleTimeoutMinutes: 15,
+    showSessionTimer: true,
+    sessionClock: null,
+    csatSelection: 0,
+    csatComment: '',
+    csatThanks: false
   };
 
   try {
@@ -131,7 +140,7 @@
   }
 
   function shell() {
-    var headerSubtitle = cfg.headerSubtitle || (state.availability === 'online' ? cfg.i18n.online : cfg.i18n.away);
+    var headerSubtitle = state.availability === 'online' ? (cfg.headerSubtitle || cfg.i18n.online) : (state.availability === 'offline' ? cfg.i18n.offline : cfg.i18n.away);
     root.innerHTML = greetingHtml() + launcherHtml() +
       '<section id="n8lc-panel" class="n8lc-panel ' + (state.open ? 'is-open' : '') + '" aria-hidden="' + (state.open ? 'false' : 'true') + '">' +
         '<header class="n8lc-header"><div class="n8lc-header-main">' + avatarHtml() + '<div class="n8lc-header-copy"><strong>' + esc(cfg.title) + '</strong><span class="n8lc-presence n8lc-presence-' + esc(state.availability) + '"><i></i>' + esc(headerSubtitle) + '</span></div></div>' +
@@ -242,7 +251,7 @@
         return '<option value="' + Number(d.id) + '">' + esc(d.name) + '</option>';
       }).join('') + '</select></label>';
     }
-    var away = state.availability === 'away' ? '<div class="n8lc-away-box"><span>☾</span><div><strong>We are away right now</strong><p>' + esc(cfg.offlineMessage || 'Leave a message and we will get back to you.') + '</p></div></div>' : '';
+    var away = state.availability !== 'online' ? '<div class="n8lc-away-box"><span>' + (state.availability === 'offline' ? '○' : '☾') + '</span><div><strong>' + (state.availability === 'offline' ? 'Support is offline right now' : 'We are away right now') + '</strong><p>' + esc(cfg.offlineMessage || 'Leave a message and we will get back to you.') + '</p></div></div>' : '';
     return '<div class="n8lc-start"><div class="n8lc-start-hero"><div class="n8lc-start-avatars">' + avatarHtml() + '<span class="n8lc-hero-status"></span></div><h3>How can we help?</h3><p>' + esc(cfg.welcomeText || 'Start a conversation with our team. We are here to help.') + '</p></div>' + away + '<form class="n8lc-start-form">' +
       '<div class="n8lc-fields"><label>' + esc(cfg.i18n.name) + '<input name="name" type="text" autocomplete="name" maxlength="190" placeholder="Jane Doe"></label>' +
       '<label>' + esc(cfg.i18n.email) + (cfg.requireEmail ? ' *' : '') + '<input name="email" type="email" autocomplete="email" maxlength="190" placeholder="you@example.com" ' + (cfg.requireEmail ? 'required' : '') + '></label>' +
@@ -281,7 +290,9 @@
       localStorage.setItem(storageKey, JSON.stringify(session));
       state.messages = [];
       state.lastId = 0;
-      state.status = 'open';
+      state.status = state.availability === 'online' ? 'open' : 'pending';
+      state.sessionStartedAt = session.created_at || null;
+      state.idleTimeoutMinutes = Number(session.idle_timeout_minutes || 15);
       shell();
       return Promise.all([loadMessages(), loadState()]);
     }).then(startPolling).catch(function (err) {
@@ -309,8 +320,15 @@
   }
 
   function ratingHtml() {
-    if (!cfg.csatEnabled || state.status !== 'closed' || state.csatRating) return '';
-    return '<div class="n8lc-rating"><strong>' + esc(cfg.i18n.rateUs) + '</strong><div class="n8lc-stars">' + [1,2,3,4,5].map(function (n) { return '<button type="button" data-rating="' + n + '" aria-label="' + n + ' stars">★</button>'; }).join('') + '</div><textarea id="n8lc-rating-comment" rows="2" maxlength="1000" placeholder="Optional comment"></textarea><div id="n8lc-rating-status"></div></div>';
+    if (!cfg.csatEnabled || state.status !== 'closed') return '';
+    if (state.csatRating || state.csatThanks) return '<div class="n8lc-csat-thanks"><span>💚</span><strong>Thank you for your feedback!</strong><small>Your review helps us improve support.</small></div>';
+    var faces = [{n:1,e:'😞',l:'Poor'},{n:2,e:'🙁',l:'Not good'},{n:3,e:'😐',l:'Okay'},{n:4,e:'🙂',l:'Good'},{n:5,e:'😍',l:'Great'}];
+    return '<div class="n8lc-rating"><strong>' + esc(cfg.i18n.rateUs) + '</strong><small>How did this conversation feel?</small><div class="n8lc-csat-faces">' + faces.map(function (f) { return '<button type="button" class="' + (state.csatSelection===f.n?'is-selected':'') + '" data-rating="' + f.n + '" aria-label="' + esc(f.l) + '"><span>' + f.e + '</span><em>' + esc(f.l) + '</em></button>'; }).join('') + '</div><textarea id="n8lc-rating-comment" rows="2" maxlength="1000" placeholder="Tell us what went well or what we can improve (optional)">' + esc(state.csatComment || '') + '</textarea><button type="button" id="n8lc-submit-rating" class="n8lc-rating-submit" ' + (state.csatSelection?'':'disabled') + '>Send feedback</button><div id="n8lc-rating-status"></div></div>';
+  }
+
+  function sessionMetaHtml() {
+    if (!state.showSessionTimer || !state.session) return '';
+    return '<div class="n8lc-session-meta"><span class="n8lc-session-live"></span><span id="n8lc-session-clock">Session 00:00</span><span>· auto-closes after ' + Number(state.idleTimeoutMinutes || 15) + 'm disconnected</span></div>';
   }
 
   function typingHtml() {
@@ -323,7 +341,7 @@
     var attach = cfg.uploadsEnabled ? '<input type="file" id="n8lc-visitor-file" class="n8lc-hidden-file"><button type="button" class="n8lc-attach" title="' + esc(cfg.i18n.attach) + '">' + icon('attach') + '</button>' : '';
     var closed = state.status === 'closed' ? '<div class="n8lc-closed-note">This conversation is closed. Sending a new message will reopen it.</div>' : '';
     return '<div class="n8lc-chat"><div class="n8lc-messages" role="log">' + (messages || '<div class="n8lc-empty-chat"><span>' + icon('sparkle') + '</span><strong>Your conversation starts here</strong><p>Send a message and our team will jump in.</p></div>') + '</div>' + typingHtml() + ratingHtml() + closed +
-      '<form class="n8lc-compose">' + attach + '<textarea name="message" rows="1" maxlength="5000" placeholder="' + esc(cfg.i18n.placeholder) + '" required></textarea><button type="submit" class="n8lc-send" aria-label="' + esc(cfg.i18n.send) + '">' + icon('send') + '</button></form><div id="n8lc-upload-status" class="n8lc-upload-status"></div></div>';
+      sessionMetaHtml() + '<form class="n8lc-compose">' + attach + '<textarea name="message" rows="1" maxlength="5000" placeholder="' + esc(cfg.i18n.placeholder) + '" required>' + esc(state.draft || '') + '</textarea><button type="submit" class="n8lc-send" aria-label="' + esc(cfg.i18n.send) + '">' + icon('send') + '</button></form><div id="n8lc-upload-status" class="n8lc-upload-status"></div></div>';
   }
 
   function bindChat() {
@@ -334,7 +352,8 @@
       textarea.addEventListener('keydown', function (ev) {
         if (ev.key === 'Enter' && !ev.shiftKey) { ev.preventDefault(); form.requestSubmit(); }
       });
-      textarea.addEventListener('input', function () { autoGrow(textarea); visitorTyping(); });
+      textarea.addEventListener('input', function () { state.draft = textarea.value; autoGrow(textarea); visitorTyping(); });
+      if (state.draft) autoGrow(textarea);
     }
     var attach = root.querySelector('.n8lc-attach');
     var file = root.querySelector('#n8lc-visitor-file');
@@ -342,7 +361,11 @@
       attach.addEventListener('click', function () { file.click(); });
       file.addEventListener('change', uploadFile);
     }
-    Array.prototype.forEach.call(root.querySelectorAll('.n8lc-stars button'), function (btn) { btn.addEventListener('click', submitRating); });
+    Array.prototype.forEach.call(root.querySelectorAll('.n8lc-csat-faces button'), function (btn) { btn.addEventListener('click', selectRating); });
+    var ratingComment = root.querySelector('#n8lc-rating-comment');
+    if (ratingComment) ratingComment.addEventListener('input', function () { state.csatComment = ratingComment.value; });
+    var ratingSubmit = root.querySelector('#n8lc-submit-rating');
+    if (ratingSubmit) ratingSubmit.addEventListener('click', submitRating);
   }
 
   function autoGrow(el) {
@@ -369,8 +392,9 @@
     textarea.disabled = true;
     api('messages', { method: 'POST', body: { conversation_id: state.session.conversation_id, message: text, url: window.location.href } }).then(function () {
       textarea.value = '';
+      state.draft = '';
       textarea.style.height = 'auto';
-      state.status = state.availability === 'away' ? 'pending' : 'open';
+      state.status = state.availability === 'online' ? 'open' : 'pending';
       return api('typing', { method: 'POST', body: { conversation_id: state.session.conversation_id, typing: false } });
     }).then(function () { return Promise.all([loadMessages(), loadState()]); }).catch(function (err) {
       window.alert(err.message || cfg.i18n.error);
@@ -404,15 +428,29 @@
     }).finally(function () { state.busy = false; });
   }
 
-  function submitRating(e) {
-    if (!state.session) return;
-    var rating = Number(e.currentTarget.dataset.rating || 0);
+  function selectRating(e) {
+    state.csatSelection = Number(e.currentTarget.dataset.rating || 0);
+    renderContent();
+    var comment = root.querySelector('#n8lc-rating-comment');
+    if (comment) comment.focus();
+  }
+
+  function submitRating() {
+    if (!state.session || !state.csatSelection) return;
+    var rating = Number(state.csatSelection || 0);
     var comment = root.querySelector('#n8lc-rating-comment');
     var status = root.querySelector('#n8lc-rating-status');
-    api('rating', { method: 'POST', body: { conversation_id: state.session.conversation_id, rating: rating, comment: comment ? comment.value : '' } }).then(function () {
+    var submit = root.querySelector('#n8lc-submit-rating');
+    if (submit) submit.disabled = true;
+    api('rating', { method: 'POST', body: { conversation_id: state.session.conversation_id, rating: rating, comment: comment ? comment.value : state.csatComment } }).then(function () {
       state.csatRating = rating;
+      state.csatComment = comment ? comment.value : state.csatComment;
+      state.csatThanks = true;
       renderContent();
-    }).catch(function (err) { if (status) status.textContent = err.message; });
+    }).catch(function (err) {
+      if (status) status.textContent = err.message;
+      if (submit) submit.disabled = false;
+    });
   }
 
   function endChat() {
@@ -456,10 +494,20 @@
       state.agentTyping = payload.agent_typing || null;
       state.availability = payload.availability || state.availability;
       state.csatRating = payload.csat_rating == null ? state.csatRating : payload.csat_rating;
+      state.sessionStartedAt = payload.session_started_at || state.sessionStartedAt;
+      state.sessionExpiresAt = payload.session_expires_at || state.sessionExpiresAt;
+      state.idleTimeoutMinutes = Number(payload.idle_timeout_minutes || state.idleTimeoutMinutes || 15);
+      state.showSessionTimer = payload.show_session_timer !== false;
       var typingEl = root.querySelector('.n8lc-agent-typing');
       if (typingEl && state.open) typingEl.outerHTML = typingHtml();
       var presence = root.querySelector('.n8lc-presence');
-      if (presence) presence.className = 'n8lc-presence n8lc-presence-' + state.availability;
+      if (presence) {
+        presence.className = 'n8lc-presence n8lc-presence-' + state.availability;
+        var dot = '<i></i>';
+        var label = state.availability === 'online' ? cfg.i18n.online : (state.availability === 'offline' ? cfg.i18n.offline : cfg.i18n.away);
+        presence.innerHTML = dot + esc(label);
+      }
+      updateSessionClock();
       if (state.open && oldStatus !== state.status) shell();
       else if (state.open && oldRating !== state.csatRating) renderContent();
     }).catch(function () {});
@@ -476,13 +524,17 @@
     var interval = state.open ? base : Math.max(6000, base * 2);
     state.polling = window.setInterval(function () { loadMessages(); loadState(); }, interval);
     state.heartbeat = window.setInterval(heartbeat, 30000);
+    state.sessionClock = window.setInterval(updateSessionClock, 1000);
+    updateSessionClock();
   }
 
   function stopPolling() {
     if (state.polling) window.clearInterval(state.polling);
     if (state.heartbeat) window.clearInterval(state.heartbeat);
+    if (state.sessionClock) window.clearInterval(state.sessionClock);
     state.polling = null;
     state.heartbeat = null;
+    state.sessionClock = null;
   }
 
   function resetSession() {
@@ -493,8 +545,27 @@
     state.status = 'open';
     state.agentTyping = null;
     state.unread = 0;
+    state.draft = '';
+    state.sessionStartedAt = null;
+    state.sessionExpiresAt = null;
+    state.csatSelection = 0;
+    state.csatComment = '';
+    state.csatThanks = false;
     stopPolling();
     shell();
+  }
+
+  function updateSessionClock() {
+    var el = root.querySelector('#n8lc-session-clock');
+    if (!el || !state.sessionStartedAt) return;
+    var started = new Date(String(state.sessionStartedAt).replace(' ', 'T')).getTime();
+    if (!started || isNaN(started)) return;
+    var seconds = Math.max(0, Math.floor((Date.now() - started) / 1000));
+    var h = Math.floor(seconds / 3600);
+    var m = Math.floor((seconds % 3600) / 60);
+    var sec = seconds % 60;
+    var label = h > 0 ? (String(h).padStart(2,'0') + ':' + String(m).padStart(2,'0') + ':' + String(sec).padStart(2,'0')) : (String(m).padStart(2,'0') + ':' + String(sec).padStart(2,'0'));
+    el.textContent = 'Session ' + label;
   }
 
   function scrollBottom() {

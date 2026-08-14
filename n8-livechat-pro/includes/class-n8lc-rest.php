@@ -75,6 +75,12 @@ final class N8LC_REST {
             'permission_callback' => '__return_true',
         ) );
 
+        register_rest_route( self::NS, '/admin/presence', array(
+            'methods'             => WP_REST_Server::CREATABLE,
+            'callback'            => array( $this, 'admin_presence' ),
+            'permission_callback' => array( 'N8LC_Security', 'admin_permission' ),
+        ) );
+
         register_rest_route( self::NS, '/admin/stats', array(
             'methods'             => WP_REST_Server::READABLE,
             'callback'            => array( $this, 'admin_stats' ),
@@ -331,7 +337,7 @@ final class N8LC_REST {
             $department_id = (int) $wpdb->get_var( 'SELECT id FROM ' . N8LC_DB::table( 'departments' ) . ' WHERE is_active = 1 ORDER BY id ASC LIMIT 1' ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
         }
 
-        $initial_status = N8LC_Availability::is_open( $settings ) ? 'open' : 'pending';
+        $initial_status = N8LC_Presence::is_online( $settings ) ? 'open' : 'pending';
         $wpdb->insert(
             N8LC_DB::table( 'conversations' ),
             array(
@@ -380,7 +386,9 @@ final class N8LC_REST {
             'visitor_public_id'      => $visitor_public_id,
             'token'                  => $token,
             'poll_interval'          => isset( $settings['poll_interval'] ) ? absint( $settings['poll_interval'] ) : 3000,
-            'availability'           => N8LC_Availability::is_open( $settings ) ? 'online' : 'away',
+            'availability'           => N8LC_Presence::status( $settings ),
+            'created_at'             => $now,
+            'idle_timeout_minutes'   => class_exists( 'N8LC_Platform' ) ? absint( N8LC_Platform::settings()['chat_idle_timeout_minutes'] ) : 15,
         ) );
     }
 
@@ -434,7 +442,7 @@ final class N8LC_REST {
             array( '%d', '%s', '%s', '%s', '%d', '%s' )
         );
         $message_id = (int) $wpdb->insert_id;
-        $reopen     = N8LC_Availability::is_open() ? 'open' : 'pending';
+        $reopen     = N8LC_Presence::is_online() ? 'open' : 'pending';
         $wpdb->query(
             $wpdb->prepare(
                 'UPDATE ' . N8LC_DB::table( 'conversations' ) . ' SET unread_agent=unread_agent+1,status=IF(status=%s,%s,status),last_message_at=%s,updated_at=%s WHERE id=%d',
@@ -504,16 +512,27 @@ final class N8LC_REST {
             return new WP_Error( 'n8lc_forbidden', __( 'Invalid chat session.', 'n8-livechat-pro' ), array( 'status' => 403 ) );
         }
         $row = $wpdb->get_row(
-            $wpdb->prepare( 'SELECT status,priority,agent_id,csat_rating FROM ' . N8LC_DB::table( 'conversations' ) . ' WHERE id=%d', $conversation_id ),
+            $wpdb->prepare(
+                'SELECT c.status,c.priority,c.agent_id,c.csat_rating,c.created_at,v.last_seen FROM ' . N8LC_DB::table( 'conversations' ) . ' c INNER JOIN ' . N8LC_DB::table( 'visitors' ) . ' v ON v.id=c.visitor_id WHERE c.id=%d',
+                $conversation_id
+            ),
             ARRAY_A
         );
-        $typing = get_transient( 'n8lc_atyping_' . $conversation_id );
+        $typing   = get_transient( 'n8lc_atyping_' . $conversation_id );
+        $platform = class_exists( 'N8LC_Platform' ) ? N8LC_Platform::settings() : array();
+        $idle_minutes = max( 5, min( 1440, absint( isset( $platform['chat_idle_timeout_minutes'] ) ? $platform['chat_idle_timeout_minutes'] : 15 ) ) );
+        $last_seen_date = $row && ! empty( $row['last_seen'] ) ? DateTimeImmutable::createFromFormat( 'Y-m-d H:i:s', $row['last_seen'], wp_timezone() ) : false;
+        $last_seen_ts   = $last_seen_date ? $last_seen_date->getTimestamp() : time();
         return rest_ensure_response( array(
-            'status'       => $row ? $row['status'] : 'open',
-            'priority'     => $row ? $row['priority'] : 'normal',
-            'csat_rating'  => $row && null !== $row['csat_rating'] ? (int) $row['csat_rating'] : null,
-            'agent_typing' => is_array( $typing ) ? $typing : null,
-            'availability' => N8LC_Availability::is_open() ? 'online' : 'away',
+            'status'               => $row ? $row['status'] : 'open',
+            'priority'             => $row ? $row['priority'] : 'normal',
+            'csat_rating'          => $row && null !== $row['csat_rating'] ? (int) $row['csat_rating'] : null,
+            'agent_typing'         => is_array( $typing ) ? $typing : null,
+            'availability'         => N8LC_Presence::status(),
+            'session_started_at'   => $row ? $row['created_at'] : null,
+            'session_expires_at'   => wp_date( 'Y-m-d H:i:s', $last_seen_ts + ( $idle_minutes * MINUTE_IN_SECONDS ), wp_timezone() ),
+            'idle_timeout_minutes' => $idle_minutes,
+            'show_session_timer'   => ! empty( $platform['chat_show_session_timer'] ),
         ) );
     }
 
@@ -586,6 +605,12 @@ final class N8LC_REST {
         return rest_ensure_response( array( 'ok' => true, 'rating' => $rating ) );
     }
 
+    public function admin_presence( WP_REST_Request $request ) {
+        $online = ! $request->has_param( 'online' ) || rest_sanitize_boolean( $request->get_param( 'online' ) );
+        $snapshot = $online ? N8LC_Presence::touch( get_current_user_id() ) : N8LC_Presence::clear( get_current_user_id() );
+        return rest_ensure_response( $snapshot );
+    }
+
     public function admin_stats() {
         global $wpdb;
         $c             = N8LC_DB::table( 'conversations' );
@@ -601,7 +626,7 @@ final class N8LC_REST {
             'online_visitors'     => (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$v} WHERE last_seen >= %s", $online_cutoff ) ),
             'conversations_today' => (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$c} WHERE created_at >= %s", $today ) ),
             'messages_today'      => (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$m} WHERE created_at >= %s", $today ) ),
-            'availability'        => N8LC_Availability::is_open() ? 'online' : 'away',
+            'availability'        => N8LC_Presence::status(),
         ) );
     }
 

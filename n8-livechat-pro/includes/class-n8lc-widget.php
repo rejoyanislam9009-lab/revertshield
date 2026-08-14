@@ -75,7 +75,7 @@ final class N8LC_Widget {
                 'uploadsEnabled' => ! empty( $settings['uploads_enabled'] ),
                 'maxUploadMb'    => isset( $settings['max_upload_mb'] ) ? absint( $settings['max_upload_mb'] ) : 5,
                 'csatEnabled'    => ! empty( $settings['csat_enabled'] ),
-                'availability'   => N8LC_Availability::is_open( $settings ) ? 'online' : 'away',
+                'availability'   => N8LC_Presence::status( $settings ),
                 'offlineMessage' => isset( $settings['offline_message'] ) ? $settings['offline_message'] : '',
                 'i18n'           => array(
                     'name'        => __( 'Your name', 'n8-livechat-pro' ),
@@ -92,6 +92,7 @@ final class N8LC_Widget {
                     'error'       => __( 'Could not connect. Please try again.', 'n8-livechat-pro' ),
                     'online'      => __( 'Online', 'n8-livechat-pro' ),
                     'away'        => __( 'Away', 'n8-livechat-pro' ),
+                    'offline'     => __( 'Offline', 'n8-livechat-pro' ),
                     'rateUs'      => __( 'How was your support experience?', 'n8-livechat-pro' ),
                 ),
             )
