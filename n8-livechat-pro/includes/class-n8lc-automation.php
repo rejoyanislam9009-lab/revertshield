@@ -257,9 +257,9 @@ final class N8LC_Automation {
             $conversation_id = absint( $row['id'] );
             $wpdb->update(
                 $c,
-                array( 'status' => 'closed', 'closed_at' => $now, 'updated_at' => $now ),
+                array( 'status' => 'closed', 'closed_at' => $now, 'closed_reason' => 'idle', 'updated_at' => $now ),
                 array( 'id' => $conversation_id ),
-                array( '%s', '%s', '%s' ),
+                array( '%s', '%s', '%s', '%s' ),
                 array( '%d' )
             );
             delete_transient( 'n8lc_vtyping_' . $conversation_id );

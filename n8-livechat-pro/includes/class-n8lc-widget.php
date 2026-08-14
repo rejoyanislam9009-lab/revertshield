@@ -30,6 +30,7 @@ final class N8LC_Widget {
         }
 
         wp_enqueue_style( 'n8lc-widget', N8LC_URL . 'assets/css/widget-v03.css', array(), N8LC_VERSION );
+        wp_enqueue_style( 'n8lc-widget-experience', N8LC_URL . 'assets/css/widget-v04.css', array( 'n8lc-widget' ), N8LC_VERSION );
         wp_enqueue_script( 'n8lc-widget', N8LC_URL . 'assets/js/widget-v03.js', array(), N8LC_VERSION, true );
 
         $visual = N8LC_Visual::get();

@@ -143,3 +143,13 @@ v0.4 is additive by design:
 
 ## License
 GPL-2.0-or-later.
+
+
+### v0.5.1 conversation reliability hotfix
+- Actually loads the v0.4/v0.5 experience stylesheet after the base widget CSS.
+- Adds theme-resistant mobile composer/header/CSAT controls for WooCommerce themes such as WoodMart.
+- Deduplicates overlapping message polls and preserves visitor/admin typing focus and draft selection.
+- Admin replies echo immediately and thread state reconciles using latest message ID.
+- CSAT is shown only after the visitor explicitly ends a two-way conversation; agent/idle closes never prompt for a rating.
+- Adds explicit conversation close reasons (visitor, agent, idle) through a dbDelta-safe schema migration.
+- Adds mobile master/detail behavior to the Team Inbox.
