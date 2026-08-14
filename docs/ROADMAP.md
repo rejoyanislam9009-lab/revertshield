@@ -85,7 +85,7 @@
 - Deterministic regression coverage for baseline, WooCommerce-active, and WooCommerce-failure behavior.
 - Real current WooCommerce install/activation and Store API integration coverage on the latest supported WordPress/PHP runtime boundary.
 
-## Phase 5B - Multisite safety boundaries - in progress for 0.8.0
+## Phase 5B - Multisite safety boundaries - complete in 0.8.0
 
 - Explicit current site/network context for snapshot ownership decisions.
 - Site-scoped snapshot manifest metadata binding origin blog and network identifiers.
