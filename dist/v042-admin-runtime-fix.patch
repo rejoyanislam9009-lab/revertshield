@@ -1,0 +1,83 @@
+diff -ruN n8lc-v042-base/n8-livechat-pro/README.md n8lc-v042-work/n8-livechat-pro/README.md
+--- n8lc-v042-base/n8-livechat-pro/README.md	2026-08-14 13:16:17.000000000 +0000
++++ n8lc-v042-work/n8-livechat-pro/README.md	2026-08-14 17:57:21.841064026 +0000
+@@ -1,6 +1,6 @@
+-# N8 LiveChat Pro 0.4.1
++# N8 LiveChat Pro 0.4.2
+ 
+-N8 LiveChat Pro is a standalone WordPress live-chat and support-operations plugin. Version 0.4.1 preserves the validated v0.3 chat core and adds a professional platform layer for team management, routing, customer data, knowledge, privacy, integrations, diagnostics and deeper widget behavior.
++N8 LiveChat Pro is a standalone WordPress live-chat and support-operations plugin. Version 0.4.2 preserves the validated v0.3 chat core and adds a professional platform layer for team management, routing, customer data, knowledge, privacy, integrations, diagnostics and deeper widget behavior.
+@@ -103,7 +103,7 @@
+ ## Installation / upgrade
+ 1. Back up the WordPress database and site files before a production upgrade.
+-2. Upload `n8-livechat-pro-0.4.1.zip` from **Plugins -> Add New Plugin -> Upload Plugin**.
++2. Upload `n8-livechat-pro-0.4.2.zip` from **Plugins -> Add New Plugin -> Upload Plugin**.
+ 3. When replacing an earlier N8 LiveChat Pro version, use WordPress's replace-current-plugin flow.
+ 4. Open **N8 LiveChat -> Settings** for existing chat/visual settings.
+ 5. Open **N8 LiveChat -> Platform** for team, routing, fields, integrations, privacy behavior and diagnostics.
+diff -ruN n8lc-v042-base/n8-livechat-pro/includes/class-n8lc-admin.php n8lc-v042-work/n8-livechat-pro/includes/class-n8lc-admin.php
+--- n8lc-v042-base/n8-livechat-pro/includes/class-n8lc-admin.php	2026-08-14 13:16:17.000000000 +0000
++++ n8lc-v042-work/n8-livechat-pro/includes/class-n8lc-admin.php	2026-08-14 17:57:21.835073810 +0000
+@@ -62,7 +62,7 @@
+         }
+ 
+         $agents       = array();
+-        foreach ( get_users( array( 'fields' => array( 'ID', 'display_name', 'user_email' ) ) ) as $user ) {
++        foreach ( get_users( array( 'fields' => 'all' ) ) as $user ) {
+             if ( user_can( $user, 'n8lc_reply_chat' ) || user_can( $user, 'manage_options' ) ) {
+                 $agents[] = array(
+                     'id'    => (int) $user->ID,
+diff -ruN n8lc-v042-base/n8-livechat-pro/includes/class-n8lc-platform.php n8lc-v042-work/n8-livechat-pro/includes/class-n8lc-platform.php
+--- n8lc-v042-base/n8-livechat-pro/includes/class-n8lc-platform.php	2026-08-14 13:16:17.000000000 +0000
++++ n8lc-v042-work/n8-livechat-pro/includes/class-n8lc-platform.php	2026-08-14 17:57:21.836594075 +0000
+@@ -659,7 +659,7 @@
+     public function rest_agents() {
+         global $wpdb;
+         $table = self::table( 'agent_profiles' );
+-        $users = get_users( array( 'fields' => array( 'ID', 'display_name', 'user_email', 'roles' ) ) );
++        $users = get_users( array( 'fields' => 'all' ) );
+         $items = array();
+         $can_onboard = current_user_can( 'manage_options' );
+         foreach ( $users as $user ) {
+diff -ruN n8lc-v042-base/n8-livechat-pro/n8-livechat-pro.php n8lc-v042-work/n8-livechat-pro/n8-livechat-pro.php
+--- n8lc-v042-base/n8-livechat-pro/n8-livechat-pro.php	2026-08-14 13:16:17.000000000 +0000
++++ n8lc-v042-work/n8-livechat-pro/n8-livechat-pro.php	2026-08-14 17:57:21.838093975 +0000
+@@ -3,7 +3,7 @@
+  * Plugin Name: N8 LiveChat Pro
+  * Plugin URI:  https://github.com/rejoyanislam9009-lab/revertshield
+  * Description: Advanced live chat and support inbox for WordPress with agents, departments, typing indicators, attachments, tags, SLA automation, CSAT, analytics, notifications, and signed webhooks.
+- * Version:     0.4.1
++ * Version:     0.4.2
+  * Author:      N8
+  * License:     GPL-2.0-or-later
+  * Text Domain: n8-livechat-pro
+@@ -13,7 +13,7 @@
+ 
+ defined( 'ABSPATH' ) || exit;
+ 
+-define( 'N8LC_VERSION', '0.4.1' );
++define( 'N8LC_VERSION', '0.4.2' );
+ define( 'N8LC_FILE', __FILE__ );
+ define( 'N8LC_DIR', plugin_dir_path( __FILE__ ) );
+ define( 'N8LC_URL', plugin_dir_url( __FILE__ ) );
+diff -ruN n8lc-v042-base/n8-livechat-pro/readme.txt n8lc-v042-work/n8-livechat-pro/readme.txt
+--- n8lc-v042-base/n8-livechat-pro/readme.txt	2026-08-14 13:16:17.000000000 +0000
++++ n8lc-v042-work/n8-livechat-pro/readme.txt	2026-08-14 17:57:21.839365776 +0000
+@@ -3,7 +3,7 @@
+ Requires at least: 6.5
+ Tested up to: 7.0
+ Requires PHP: 7.4
+-Stable tag: 0.4.1
++Stable tag: 0.4.2
+ License: GPLv2 or later
+@@ -37,6 +37,10 @@
+ The plugin enforces its upload allowlist and size controls but does not bundle a malware engine. Security products can integrate through the `n8lc_validate_upload` hook.
+ 
+ == Changelog ==
++= 0.4.2 =
++* Fixed a WordPress admin fatal caused by passing partial stdClass user-query rows into user_can().
++* LiveChat dashboard, inbox, settings, team and platform pages now request full WP_User objects before capability checks.
++* Added an admin-runtime regression gate to prevent this capability-check crash from returning.
+ 
+ = 0.4.1 =
+ * Recovery-safe bootstrap: runtime module failures no longer take down wp-admin.
