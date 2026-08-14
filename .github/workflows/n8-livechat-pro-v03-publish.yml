@@ -33,9 +33,23 @@ jobs:
             dist/v03-payload/part01 \
             dist/v03-payload/part02 \
             dist/v03-payload/part03 \
-            dist/v03-payload/part04 \
+            dist/v03-payload/part04_00 \
+            dist/v03-payload/part04_01 \
+            dist/v03-payload/part04_02 \
+            dist/v03-payload/part04_03 \
+            dist/v03-payload/part04_04 \
+            dist/v03-payload/part04_05 \
+            dist/v03-payload/part04_06 \
+            dist/v03-payload/part04_07 \
             dist/v03-payload/part05 \
-            dist/v03-payload/part06 \
+            dist/v03-payload/part06_00 \
+            dist/v03-payload/part06_01 \
+            dist/v03-payload/part06_02 \
+            dist/v03-payload/part06_03 \
+            dist/v03-payload/part06_04 \
+            dist/v03-payload/part06_05 \
+            dist/v03-payload/part06_06 \
+            dist/v03-payload/part06_07 \
             dist/v03-payload/part07 \
             dist/v03-payload/part08 \
             dist/v03-payload/part09a \
