@@ -44,7 +44,10 @@ final class ScheduledHealthCheck {
 	 * @return array
 	 */
 	public static function cron_schedules( $schedules ) {
-		$schedules                              = is_array( $schedules ) ? $schedules : array();
+		if ( ! is_array( $schedules ) ) {
+			$schedules = array();
+		}
+
 		$schedules['revertshield_six_hours'] = array(
 			'interval' => 6 * HOUR_IN_SECONDS,
 			'display'  => __( 'Every 6 hours (RevertShield)', 'revertshield' ),
