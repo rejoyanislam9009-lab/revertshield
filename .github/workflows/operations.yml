@@ -1,0 +1,67 @@
+name: Operations and observability gates
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: revertshield-operations-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  operations-runtime:
+    name: WordPress ${{ matrix.wordpress }} / PHP ${{ matrix.php }} operations
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - wordpress: '6.5'
+            php: '7.4'
+          - wordpress: 'latest'
+            php: '8.4'
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          coverage: none
+          tools: wp-cli
+      - name: Build installable plugin
+        run: |
+          chmod +x ./bin/build-release.sh
+          ./bin/build-release.sh /tmp/revertshield.zip
+      - name: Install WordPress
+        run: |
+          mkdir -p /tmp/revertshield-operations
+          wp core download --path=/tmp/revertshield-operations --version="${{ matrix.wordpress }}" --force
+          wp config create --path=/tmp/revertshield-operations --dbname=revertshield_operations --dbuser=root --dbpass=root --dbhost=127.0.0.1:3306 --skip-check
+          wp db create --path=/tmp/revertshield-operations
+          wp core install --path=/tmp/revertshield-operations --url=http://revertshield.test --title="RevertShield Operations" --admin_user=admin --admin_password=test-password --admin_email=test@example.com --skip-email
+      - name: Install and activate RevertShield
+        run: |
+          unzip -q /tmp/revertshield.zip -d /tmp/revertshield-operations/wp-content/plugins
+          wp plugin activate revertshield --path=/tmp/revertshield-operations
+      - name: Run operations regression assertions
+        run: wp eval-file "$GITHUB_WORKSPACE/tests/runtime-operations.php" --path=/tmp/revertshield-operations
+      - name: Run read-only WP-CLI smoke assertions
+        run: |
+          wp revertshield status --format=json --path=/tmp/revertshield-operations > /tmp/revertshield-status.json
+          wp revertshield snapshots --limit=5 --format=json --path=/tmp/revertshield-operations > /tmp/revertshield-snapshots.json
+          php -r '$status = json_decode(file_get_contents("/tmp/revertshield-status.json"), true); if (!is_array($status)) { fwrite(STDERR, "Invalid status JSON.\n"); exit(1); } $snapshots = json_decode(file_get_contents("/tmp/revertshield-snapshots.json"), true); if (!is_array($snapshots)) { fwrite(STDERR, "Invalid snapshots JSON.\n"); exit(1); }'
