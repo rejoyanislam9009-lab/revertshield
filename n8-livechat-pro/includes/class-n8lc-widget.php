@@ -25,8 +25,10 @@ final class N8LC_Widget {
             return;
         }
 
-        wp_enqueue_style( 'n8lc-widget', N8LC_URL . 'assets/css/widget.css', array(), N8LC_VERSION );
-        wp_enqueue_script( 'n8lc-widget', N8LC_URL . 'assets/js/widget.js', array(), N8LC_VERSION, true );
+        wp_enqueue_style( 'n8lc-widget', N8LC_URL . 'assets/css/widget-v03.css', array(), N8LC_VERSION );
+        wp_enqueue_script( 'n8lc-widget', N8LC_URL . 'assets/js/widget-v03.js', array(), N8LC_VERSION, true );
+
+        $visual = N8LC_Visual::get();
 
         $departments = array();
         global $wpdb;
@@ -44,6 +46,25 @@ final class N8LC_Widget {
                 'title'          => isset( $settings['widget_title'] ) ? $settings['widget_title'] : __( 'Chat with us', 'n8-livechat-pro' ),
                 'position'       => isset( $settings['position'] ) && 'left' === $settings['position'] ? 'left' : 'right',
                 'accentColor'    => isset( $settings['accent_color'] ) ? $settings['accent_color'] : '#111827',
+                'themePreset'    => $visual['theme_preset'],
+                'launcherIcon'   => $visual['launcher_icon'],
+                'launcherShape'  => $visual['launcher_shape'],
+                'launcherSize'   => absint( $visual['launcher_size'] ),
+                'launcherLabel'  => $visual['launcher_label'],
+                'launcherAnimation' => $visual['launcher_animation'],
+                'showGreeting'   => ! empty( $visual['show_greeting'] ),
+                'greetingText'   => $visual['greeting_text'],
+                'greetingDelay'  => absint( $visual['greeting_delay'] ),
+                'greetingAutoHide' => absint( $visual['greeting_auto_hide'] ),
+                'agentName'      => $visual['agent_name'],
+                'agentAvatarUrl' => esc_url_raw( $visual['agent_avatar_url'] ),
+                'headerSubtitle' => $visual['header_subtitle'],
+                'panelWidth'     => absint( $visual['panel_width'] ),
+                'panelHeight'    => absint( $visual['panel_height'] ),
+                'panelRadius'    => absint( $visual['panel_radius'] ),
+                'soundEnabled'   => ! empty( $visual['sound_enabled'] ),
+                'showBranding'   => ! empty( $visual['show_branding'] ),
+                'welcomeText'    => isset( $settings['welcome_message'] ) ? $settings['welcome_message'] : '',
                 'requireEmail'   => ! empty( $settings['require_email'] ),
                 'pollInterval'   => isset( $settings['poll_interval'] ) ? absint( $settings['poll_interval'] ) : 3000,
                 'departments'    => $departments,
