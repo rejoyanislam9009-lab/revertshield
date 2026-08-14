@@ -37,7 +37,7 @@ jobs:
           grep -F 'Stable tag: 0.5.0' n8-livechat-pro/readme.txt
           grep -F "require_once N8LC_DIR . 'includes/class-n8lc-presence.php';" n8-livechat-pro/n8-livechat-pro.php
           grep -F "draft:" n8-livechat-pro/assets/js/widget-v03.js
-          grep -F "state.draft = message.value" n8-livechat-pro/assets/js/widget-v03.js
+          grep -F "state.draft = textarea.value" n8-livechat-pro/assets/js/widget-v03.js
           grep -F -- '-webkit-text-fill-color:#0f172a!important' n8-livechat-pro/assets/css/widget-v04.css
           grep -F "register_rest_route( self::NS, '/admin/presence'" n8-livechat-pro/includes/class-n8lc-rest.php
           grep -F "'chat_idle_timeout_minutes'" n8-livechat-pro/includes/class-n8lc-platform.php
