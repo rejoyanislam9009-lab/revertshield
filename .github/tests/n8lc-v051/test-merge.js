@@ -1,0 +1,18 @@
+const fs=require('fs'), vm=require('vm');
+const src=fs.readFileSync(process.cwd() + '/n8-livechat-pro/assets/js/widget-v03.js','utf8');
+const a=src.indexOf('  function mergeMessages(items, advanceCursor) {');
+const b=src.indexOf('\n  function sendMessage(ev) {',a);
+if(a<0||b<0) throw new Error('mergeMessages not found');
+const fn=src.slice(a,b);
+const context={state:{seenMessageIds:{},messages:[],lastId:0}, console};
+vm.createContext(context); vm.runInContext(fn,context);
+let added=context.mergeMessages([{id:2,body:'optimistic'}],false);
+if(added.length!==1||context.state.lastId!==0) throw new Error('optimistic cursor advanced');
+added=context.mergeMessages([{id:1,body:'agent'},{id:2,body:'optimistic'}],true);
+if(added.length!==1) throw new Error('dedupe failed');
+if(context.state.lastId!==2) throw new Error('cursor did not advance over seen message');
+if(context.state.messages.length!==2) throw new Error('duplicate message stored');
+if(context.state.messages[0].id!==1||context.state.messages[1].id!==2) throw new Error('message ordering failed');
+added=context.mergeMessages([{id:2,body:'optimistic'}],true);
+if(added.length!==0||context.state.messages.length!==2||context.state.lastId!==2) throw new Error('repeat poll dedupe failed');
+console.log('mergeMessages regression test passed');

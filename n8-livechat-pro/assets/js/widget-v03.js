@@ -45,7 +45,11 @@
     sessionClock: null,
     csatSelection: 0,
     csatComment: '',
-    csatThanks: false
+    csatThanks: false,
+    csatEligible: false,
+    closeReason: '',
+    seenMessageIds: {},
+    messagesLoading: null
   };
 
   try {
@@ -216,9 +220,30 @@
       content.querySelector('.n8lc-start-form').addEventListener('submit', startSession);
       return;
     }
+    var oldTextarea = content.querySelector('.n8lc-compose textarea');
+    var hadFocus = !!oldTextarea && document.activeElement === oldTextarea;
+    var selectionStart = hadFocus ? oldTextarea.selectionStart : null;
+    var selectionEnd = hadFocus ? oldTextarea.selectionEnd : null;
+    var oldMessages = content.querySelector('.n8lc-messages');
+    var oldScrollTop = oldMessages ? oldMessages.scrollTop : 0;
+    var nearBottom = !oldMessages || (oldMessages.scrollHeight - oldMessages.scrollTop - oldMessages.clientHeight < 90);
     content.innerHTML = chatView();
     bindChat();
-    scrollBottom();
+    var newMessages = content.querySelector('.n8lc-messages');
+    if (newMessages) {
+      if (nearBottom) newMessages.scrollTop = newMessages.scrollHeight;
+      else newMessages.scrollTop = oldScrollTop;
+    }
+    if (hadFocus) {
+      var nextTextarea = content.querySelector('.n8lc-compose textarea');
+      if (nextTextarea) {
+        nextTextarea.focus({ preventScroll: true });
+        if (selectionStart !== null && nextTextarea.setSelectionRange) {
+          var max = nextTextarea.value.length;
+          nextTextarea.setSelectionRange(Math.min(selectionStart, max), Math.min(selectionEnd, max));
+        }
+      }
+    }
   }
 
   function customFieldsHtml() {
@@ -290,6 +315,9 @@
       localStorage.setItem(storageKey, JSON.stringify(session));
       state.messages = [];
       state.lastId = 0;
+      state.seenMessageIds = {};
+      state.csatEligible = false;
+      state.closeReason = '';
       state.status = state.availability === 'online' ? 'open' : 'pending';
       state.sessionStartedAt = session.created_at || null;
       state.idleTimeoutMinutes = Number(session.idle_timeout_minutes || 15);
@@ -320,7 +348,7 @@
   }
 
   function ratingHtml() {
-    if (!cfg.csatEnabled || state.status !== 'closed') return '';
+    if (!cfg.csatEnabled || state.status !== 'closed' || !state.csatEligible) return '';
     if (state.csatRating || state.csatThanks) return '<div class="n8lc-csat-thanks"><span>💚</span><strong>Thank you for your feedback!</strong><small>Your review helps us improve support.</small></div>';
     var faces = [{n:1,e:'😞',l:'Poor'},{n:2,e:'🙁',l:'Not good'},{n:3,e:'😐',l:'Okay'},{n:4,e:'🙂',l:'Good'},{n:5,e:'😍',l:'Great'}];
     return '<div class="n8lc-rating"><strong>' + esc(cfg.i18n.rateUs) + '</strong><small>How did this conversation feel?</small><div class="n8lc-csat-faces">' + faces.map(function (f) { return '<button type="button" class="' + (state.csatSelection===f.n?'is-selected':'') + '" data-rating="' + f.n + '" aria-label="' + esc(f.l) + '"><span>' + f.e + '</span><em>' + esc(f.l) + '</em></button>'; }).join('') + '</div><textarea id="n8lc-rating-comment" rows="2" maxlength="1000" placeholder="Tell us what went well or what we can improve (optional)">' + esc(state.csatComment || '') + '</textarea><button type="button" id="n8lc-submit-rating" class="n8lc-rating-submit" ' + (state.csatSelection?'':'disabled') + '>Send feedback</button><div id="n8lc-rating-status"></div></div>';
@@ -328,6 +356,7 @@
 
   function sessionMetaHtml() {
     if (!state.showSessionTimer || !state.session) return '';
+    if (state.status === 'closed') return '<div class="n8lc-session-meta n8lc-session-ended"><span class="n8lc-session-ended-dot"></span><span id="n8lc-session-clock">Session ended</span><span>' + (state.closeReason === 'idle' ? '· ended after inactivity' : '· conversation closed') + '</span></div>';
     return '<div class="n8lc-session-meta"><span class="n8lc-session-live"></span><span id="n8lc-session-clock">Session 00:00</span><span>· auto-closes after ' + Number(state.idleTimeoutMinutes || 15) + 'm disconnected</span></div>';
   }
 
@@ -339,7 +368,8 @@
   function chatView() {
     var messages = state.messages.map(messageHtml).join('');
     var attach = cfg.uploadsEnabled ? '<input type="file" id="n8lc-visitor-file" class="n8lc-hidden-file"><button type="button" class="n8lc-attach" title="' + esc(cfg.i18n.attach) + '">' + icon('attach') + '</button>' : '';
-    var closed = state.status === 'closed' ? '<div class="n8lc-closed-note">This conversation is closed. Sending a new message will reopen it.</div>' : '';
+    var closedText = state.closeReason === 'idle' ? 'This chat ended after inactivity. Send a message to continue.' : 'This conversation is closed. Sending a new message will reopen it.';
+    var closed = state.status === 'closed' ? '<div class="n8lc-closed-note">' + esc(closedText) + '</div>' : '';
     return '<div class="n8lc-chat"><div class="n8lc-messages" role="log">' + (messages || '<div class="n8lc-empty-chat"><span>' + icon('sparkle') + '</span><strong>Your conversation starts here</strong><p>Send a message and our team will jump in.</p></div>') + '</div>' + typingHtml() + ratingHtml() + closed +
       sessionMetaHtml() + '<form class="n8lc-compose">' + attach + '<textarea name="message" rows="1" maxlength="5000" placeholder="' + esc(cfg.i18n.placeholder) + '" required>' + esc(state.draft || '') + '</textarea><button type="submit" class="n8lc-send" aria-label="' + esc(cfg.i18n.send) + '">' + icon('send') + '</button></form><div id="n8lc-upload-status" class="n8lc-upload-status"></div></div>';
   }
@@ -369,8 +399,8 @@
   }
 
   function autoGrow(el) {
-    el.style.height = 'auto';
-    el.style.height = Math.min(110, el.scrollHeight) + 'px';
+    el.style.setProperty('height', 'auto', 'important');
+    el.style.setProperty('height', Math.min(96, Math.max(44, el.scrollHeight)) + 'px', 'important');
   }
 
   function visitorTyping() {
@@ -382,26 +412,58 @@
     }, 2200);
   }
 
+  function mergeMessages(items, advanceCursor) {
+    var added = [];
+    (items || []).forEach(function (msg) {
+      var id = Number(msg && msg.id || 0);
+      if (id && state.seenMessageIds[id]) {
+        if (advanceCursor !== false) state.lastId = Math.max(state.lastId, id);
+        return;
+      }
+      if (id) state.seenMessageIds[id] = true;
+      state.messages.push(msg);
+      if (id && advanceCursor !== false) state.lastId = Math.max(state.lastId, id);
+      added.push(msg);
+    });
+    if (added.length) state.messages.sort(function (a, b) { return Number(a.id || 0) - Number(b.id || 0); });
+    return added;
+  }
+
   function sendMessage(ev) {
     ev.preventDefault();
     if (state.busy || !state.session) return;
-    var textarea = ev.currentTarget.querySelector('textarea');
+    var form = ev.currentTarget;
+    var textarea = form.querySelector('textarea');
+    var send = form.querySelector('.n8lc-send');
     var text = textarea.value.trim();
     if (!text) return;
     state.busy = true;
-    textarea.disabled = true;
-    api('messages', { method: 'POST', body: { conversation_id: state.session.conversation_id, message: text, url: window.location.href } }).then(function () {
-      textarea.value = '';
-      state.draft = '';
-      textarea.style.height = 'auto';
+    if (send) send.disabled = true;
+    var submittedDraft = textarea.value;
+    api('messages', { method: 'POST', body: { conversation_id: state.session.conversation_id, message: text, url: window.location.href } }).then(function (payload) {
+      if (textarea.value === submittedDraft) {
+        textarea.value = '';
+        state.draft = '';
+      } else {
+        state.draft = textarea.value;
+      }
+      autoGrow(textarea);
       state.status = state.availability === 'online' ? 'open' : 'pending';
-      return api('typing', { method: 'POST', body: { conversation_id: state.session.conversation_id, typing: false } });
-    }).then(function () { return Promise.all([loadMessages(), loadState()]); }).catch(function (err) {
+      state.csatEligible = false;
+      state.closeReason = '';
+      if (payload && payload.message) mergeMessages([payload.message], false);
+      else if (payload && payload.message_id) mergeMessages([{ id: payload.message_id, sender_type: 'visitor', body: text, message_type: 'text', is_private: 0, created_at: payload.created_at }], false);
+      renderContent();
+      api('typing', { method: 'POST', body: { conversation_id: state.session.conversation_id, typing: false } }).catch(function () {});
+      return Promise.all([loadMessages(), loadState()]);
+    }).catch(function (err) {
+      state.draft = textarea.value;
       window.alert(err.message || cfg.i18n.error);
     }).finally(function () {
       state.busy = false;
-      textarea.disabled = false;
-      textarea.focus();
+      if (send) send.disabled = false;
+      var liveTextarea = root.querySelector('.n8lc-compose textarea');
+      if (liveTextarea) liveTextarea.focus({ preventScroll: true });
     });
   }
 
@@ -456,22 +518,21 @@
   function endChat() {
     if (!state.session || state.status === 'closed') return;
     if (!window.confirm('End this chat?')) return;
-    api('close', { method: 'POST', body: { conversation_id: state.session.conversation_id } }).then(function () {
+    api('close', { method: 'POST', body: { conversation_id: state.session.conversation_id } }).then(function (payload) {
       state.status = 'closed';
+      state.closeReason = payload && payload.close_reason ? payload.close_reason : 'visitor';
+      state.csatEligible = !!(payload && payload.can_rate);
       shell();
     }).catch(function (err) { window.alert(err.message || cfg.i18n.error); });
   }
 
   function loadMessages() {
     if (!state.session) return Promise.resolve();
-    return api('messages?conversation_id=' + encodeURIComponent(state.session.conversation_id) + '&after_id=' + encodeURIComponent(state.lastId), { method: 'GET' }).then(function (payload) {
-      if (payload.messages && payload.messages.length) {
-        var newAgent = 0;
-        payload.messages.forEach(function (msg) {
-          state.messages.push(msg);
-          state.lastId = Math.max(state.lastId, Number(msg.id) || 0);
-          if (msg.sender_type === 'agent') newAgent += 1;
-        });
+    if (state.messagesLoading) return state.messagesLoading;
+    state.messagesLoading = api('messages?conversation_id=' + encodeURIComponent(state.session.conversation_id) + '&after_id=' + encodeURIComponent(state.lastId), { method: 'GET' }).then(function (payload) {
+      var added = mergeMessages(payload.messages || [], true);
+      if (added.length) {
+        var newAgent = added.filter(function (msg) { return msg.sender_type === 'agent'; }).length;
         if (!state.open && newAgent) {
           state.unread += newAgent;
           chime();
@@ -482,7 +543,8 @@
       }
     }).catch(function (err) {
       if (/Invalid chat session/i.test(err.message || '')) resetSession();
-    });
+    }).finally(function () { state.messagesLoading = null; });
+    return state.messagesLoading;
   }
 
   function loadState() {
@@ -490,10 +552,13 @@
     return api('state?conversation_id=' + encodeURIComponent(state.session.conversation_id), { method: 'GET' }).then(function (payload) {
       var oldStatus = state.status;
       var oldRating = state.csatRating;
+      var oldEligible = state.csatEligible;
       state.status = payload.status || state.status;
       state.agentTyping = payload.agent_typing || null;
       state.availability = payload.availability || state.availability;
       state.csatRating = payload.csat_rating == null ? state.csatRating : payload.csat_rating;
+      state.csatEligible = !!payload.csat_eligible;
+      state.closeReason = payload.closed_reason || '';
       state.sessionStartedAt = payload.session_started_at || state.sessionStartedAt;
       state.sessionExpiresAt = payload.session_expires_at || state.sessionExpiresAt;
       state.idleTimeoutMinutes = Number(payload.idle_timeout_minutes || state.idleTimeoutMinutes || 15);
@@ -509,7 +574,7 @@
       }
       updateSessionClock();
       if (state.open && oldStatus !== state.status) shell();
-      else if (state.open && oldRating !== state.csatRating) renderContent();
+      else if (state.open && (oldRating !== state.csatRating || oldEligible !== state.csatEligible)) renderContent();
     }).catch(function () {});
   }
 
@@ -551,13 +616,19 @@
     state.csatSelection = 0;
     state.csatComment = '';
     state.csatThanks = false;
+    state.csatEligible = false;
+    state.closeReason = '';
+    state.seenMessageIds = {};
+    state.messagesLoading = null;
     stopPolling();
     shell();
   }
 
   function updateSessionClock() {
     var el = root.querySelector('#n8lc-session-clock');
-    if (!el || !state.sessionStartedAt) return;
+    if (!el) return;
+    if (state.status === 'closed') { el.textContent = 'Session ended'; return; }
+    if (!state.sessionStartedAt) return;
     var started = new Date(String(state.sessionStartedAt).replace(' ', 'T')).getTime();
     if (!started || isNaN(started)) return;
     var seconds = Math.max(0, Math.floor((Date.now() - started) / 1000));

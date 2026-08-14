@@ -132,7 +132,7 @@
   }
 
   var inbox = {
-    conversations: [], selected: null, messages: [], filter: '', search: '', canned: [], departments: [], tags: [], typingTimer: null, refreshTimer: null, stateTimer: null
+    conversations: [], selected: null, messages: [], filter: '', search: '', canned: [], departments: [], tags: [], typingTimer: null, refreshTimer: null, stateTimer: null, threadRequestSeq: 0, lastThreadMessageId: 0
   };
 
   function renderInbox() {
@@ -200,6 +200,8 @@
     Array.prototype.forEach.call(el.querySelectorAll('.n8lc-conversation'), function (btn) {
       btn.addEventListener('click', function () {
         inbox.selected = Number(btn.dataset.id);
+        var inboxEl = document.querySelector('.n8lc-inbox');
+        if (inboxEl) inboxEl.classList.add('is-thread-open');
         drawConversationList();
         loadThread(inbox.selected);
       });
@@ -213,20 +215,35 @@
   function loadThread(id, silent) {
     var draftEl = document.getElementById('n8lc-reply-text');
     var draft = draftEl ? draftEl.value : '';
+    var hadFocus = !!draftEl && document.activeElement === draftEl;
+    var selectionStart = hadFocus ? draftEl.selectionStart : null;
+    var selectionEnd = hadFocus ? draftEl.selectionEnd : null;
     var privateEl = document.getElementById('n8lc-private-note');
     var wasPrivate = privateEl ? privateEl.checked : false;
     var thread = document.getElementById('n8lc-thread');
     if (!thread) return;
+    var requestSeq = ++inbox.threadRequestSeq;
     if (!silent) thread.innerHTML = '<div class="n8lc-loading">Loading conversation…</div>';
     Promise.all([api('admin/conversations/' + id + '/messages'), api('admin/conversations/' + id + '/state')]).then(function (r) {
+      if (requestSeq !== inbox.threadRequestSeq || Number(id) !== Number(inbox.selected)) return;
       inbox.messages = r[0].messages || [];
+      inbox.lastThreadMessageId = inbox.messages.reduce(function (max, m) { return Math.max(max, Number(m.id || 0)); }, 0);
       drawThread(r[1]);
       var restored = document.getElementById('n8lc-reply-text');
-      if (restored && draft) restored.value = draft;
+      if (restored) {
+        restored.value = draft;
+        if (hadFocus) {
+          restored.focus({ preventScroll: true });
+          if (selectionStart !== null && restored.setSelectionRange) {
+            var max = restored.value.length;
+            restored.setSelectionRange(Math.min(selectionStart, max), Math.min(selectionEnd, max));
+          }
+        }
+      }
       var restoredPrivate = document.getElementById('n8lc-private-note');
       if (restoredPrivate) restoredPrivate.checked = wasPrivate;
     }).catch(function (e) {
-      thread.innerHTML = '<div class="n8lc-inline-error">' + esc(e.message) + '</div>';
+      if (requestSeq === inbox.threadRequestSeq) thread.innerHTML = '<div class="n8lc-inline-error">' + esc(e.message) + '</div>';
     });
   }
 
@@ -239,6 +256,7 @@
     api('admin/conversations/' + inbox.selected + '/state').then(function (s) {
       var el = document.getElementById('n8lc-visitor-typing');
       if (el) el.innerHTML = visitorTypingHtml(!!s.visitor_typing);
+      if (Number(s.latest_message_id || 0) > Number(inbox.lastThreadMessageId || 0)) loadThread(inbox.selected, true);
     }).catch(function () {});
   }
 
@@ -259,6 +277,26 @@
     return out;
   }
 
+  function adminMessageHtml(m, c) {
+    c = c || selectedConversation() || {};
+    var type = Number(m.is_private) === 1 ? 'note' : m.sender_type;
+    var sender = type === 'visitor' ? (c.visitor_name || 'Visitor') : (type === 'note' ? 'Private note' : (type === 'system' ? 'System' : 'Agent'));
+    return '<div class="n8lc-admin-msg n8lc-admin-msg-' + esc(type) + '" data-message-id="' + Number(m.id || 0) + '"><div><span class="n8lc-sender">' + esc(sender) + '</span><div class="n8lc-admin-bubble">' + attachmentHtml(m) + '</div><time>' + esc(fmtDate(m.created_at)) + '</time></div></div>';
+  }
+
+  function appendAdminMessage(m) {
+    if (!m) return;
+    var id = Number(m.id || 0);
+    if (id && inbox.messages.some(function (x) { return Number(x.id) === id; })) return;
+    inbox.messages.push(m);
+    if (id) inbox.lastThreadMessageId = Math.max(inbox.lastThreadMessageId, id);
+    var body = document.getElementById('n8lc-thread-body');
+    if (body) {
+      body.insertAdjacentHTML('beforeend', adminMessageHtml(m));
+      body.scrollTop = body.scrollHeight;
+    }
+  }
+
   function drawThread(stateData) {
     var c = selectedConversation();
     if (!c) return;
@@ -277,20 +315,18 @@
       return '<label class="n8lc-tag-check"><input type="checkbox" value="' + Number(t.id) + '"' + checked + '><span style="--tag:' + esc(t.color || '#64748b') + '">' + esc(t.name) + '</span></label>';
     }).join('') : '<small>No tags created yet.</small>';
 
-    var messages = inbox.messages.map(function (m) {
-      var type = Number(m.is_private) === 1 ? 'note' : m.sender_type;
-      var sender = type === 'visitor' ? (c.visitor_name || 'Visitor') : (type === 'note' ? 'Private note' : (type === 'system' ? 'System' : 'Agent'));
-      return '<div class="n8lc-admin-msg n8lc-admin-msg-' + esc(type) + '"><div><span class="n8lc-sender">' + esc(sender) + '</span><div class="n8lc-admin-bubble">' + attachmentHtml(m) + '</div><time>' + esc(fmtDate(m.created_at)) + '</time></div></div>';
-    }).join('');
+    var messages = inbox.messages.map(function (m) { return adminMessageHtml(m, c); }).join('');
 
     var sla = Number(c.sla_breached) ? '<span class="n8lc-sla-breach">SLA BREACHED</span>' : '<span class="n8lc-sla-ok">First response due: ' + esc(fmtDate(c.first_response_due_at)) + '</span>';
     var el = document.getElementById('n8lc-thread');
-    el.innerHTML = '<div class="n8lc-thread-head"><div><h2>' + esc(c.visitor_name || 'Anonymous') + '</h2><p>' + esc(c.visitor_email || '') + (c.visitor_phone ? ' · ' + esc(c.visitor_phone) : '') + '</p><div class="n8lc-thread-meta">' + sla + ' ' + tagPills(c.tags) + '</div></div><div class="n8lc-thread-actions"><select id="n8lc-status-edit"><option value="open">Open</option><option value="pending">Pending</option><option value="closed">Closed</option></select><select id="n8lc-priority-edit"><option value="low">Low</option><option value="normal">Normal</option><option value="high">High</option><option value="urgent">Urgent</option></select><select id="n8lc-agent-edit">' + agentOptions + '</select><select id="n8lc-dept-edit">' + deptOptions + '</select></div></div>' +
+    el.innerHTML = '<div class="n8lc-thread-head"><button type="button" class="button n8lc-mobile-back" aria-label="Back to conversations">← Conversations</button><div><h2>' + esc(c.visitor_name || 'Anonymous') + '</h2><p>' + esc(c.visitor_email || '') + (c.visitor_phone ? ' · ' + esc(c.visitor_phone) : '') + '</p><div class="n8lc-thread-meta">' + sla + ' ' + tagPills(c.tags) + '</div></div><div class="n8lc-thread-actions"><select id="n8lc-status-edit"><option value="open">Open</option><option value="pending">Pending</option><option value="closed">Closed</option></select><select id="n8lc-priority-edit"><option value="low">Low</option><option value="normal">Normal</option><option value="high">High</option><option value="urgent">Urgent</option></select><select id="n8lc-agent-edit">' + agentOptions + '</select><select id="n8lc-dept-edit">' + deptOptions + '</select></div></div>' +
       '<div class="n8lc-thread-body" id="n8lc-thread-body">' + messages + '</div>' +
       '<div id="n8lc-visitor-typing" class="n8lc-typing-line">' + visitorTypingHtml(!!(stateData && stateData.visitor_typing)) + '</div>' +
       '<details class="n8lc-context"><summary>Conversation context, tags & custom fields</summary><div class="n8lc-context-grid"><div><strong>Tags</strong><div id="n8lc-thread-tags" class="n8lc-tag-picker">' + tagChecks + '</div><button type="button" class="button" id="n8lc-save-tags">Save tags</button></div><div><strong>Custom fields</strong><textarea id="n8lc-custom-data" rows="5" placeholder="order_id=12345\nplan=pro">' + esc(customDataLines(c.custom_data)) + '</textarea><button type="button" class="button" id="n8lc-save-custom">Save fields</button></div></div></details>' +
       '<div class="n8lc-thread-compose"><div class="n8lc-compose-top"><select id="n8lc-canned-select">' + cannedOptions + '</select><label><input type="checkbox" id="n8lc-private-note"> Private note</label><button type="button" class="button" id="n8lc-send-transcript">Email transcript</button></div><textarea id="n8lc-reply-text" rows="3" maxlength="5000" placeholder="Write a reply…"></textarea><div class="n8lc-compose-bottom"><div><input type="file" id="n8lc-agent-file" class="n8lc-hidden-file"><button type="button" class="button" id="n8lc-attach-file">📎 Attach</button><span id="n8lc-reply-status"></span></div><button class="button button-primary" id="n8lc-send-reply">Send reply</button></div></div>';
 
+    var mobileBack = document.querySelector('.n8lc-mobile-back');
+    if (mobileBack) mobileBack.addEventListener('click', function () { var inboxEl = document.querySelector('.n8lc-inbox'); if (inboxEl) inboxEl.classList.remove('is-thread-open'); });
     document.getElementById('n8lc-status-edit').value = c.status;
     document.getElementById('n8lc-priority-edit').value = c.priority;
     ['n8lc-status-edit', 'n8lc-priority-edit', 'n8lc-agent-edit', 'n8lc-dept-edit'].forEach(function (id) {
@@ -336,23 +372,32 @@
     var text = document.getElementById('n8lc-reply-text');
     var status = document.getElementById('n8lc-reply-status');
     var button = document.getElementById('n8lc-send-reply');
+    var isPrivate = document.getElementById('n8lc-private-note').checked;
     var body = text.value.trim();
     if (!body) return;
     button.disabled = true;
     status.textContent = 'Sending…';
     api('admin/conversations/' + inbox.selected + '/reply', {
-      method: 'POST', body: { message: body, is_private: document.getElementById('n8lc-private-note').checked }
-    }).then(function () {
+      method: 'POST', body: { message: body, is_private: isPrivate }
+    }).then(function (payload) {
       text.value = '';
-      status.textContent = 'Sent';
-      return api('admin/conversations/' + inbox.selected + '/typing', { method: 'POST', body: { typing: false } });
-    }).then(function () {
-      loadThread(inbox.selected, true);
+      status.textContent = 'Sent ✓';
+      if (payload && payload.message) appendAdminMessage(payload.message);
+      if (!isPrivate) {
+        var c = selectedConversation();
+        if (c) c.status = 'open';
+        var statusEdit = document.getElementById('n8lc-status-edit');
+        if (statusEdit) statusEdit.value = 'open';
+      }
+      api('admin/conversations/' + inbox.selected + '/typing', { method: 'POST', body: { typing: false } }).catch(function () {});
       loadConversations(true);
+      if (!payload || !payload.message) loadThread(inbox.selected, true);
     }).catch(function (e) {
       status.textContent = e.message;
     }).finally(function () {
       button.disabled = false;
+      var liveText = document.getElementById('n8lc-reply-text');
+      if (liveText) liveText.focus({ preventScroll: true });
     });
   }
 

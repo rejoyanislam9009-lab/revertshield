@@ -3,7 +3,7 @@
 defined( 'ABSPATH' ) || exit;
 
 final class N8LC_DB {
-    const DB_VERSION = '2.0.0';
+    const DB_VERSION = '2.1.0';
 
     public static function table( $name ) {
         global $wpdb;
@@ -100,6 +100,7 @@ final class N8LC_DB {
             csat_comment text NULL,
             last_message_at datetime NULL,
             closed_at datetime NULL,
+            closed_reason varchar(24) NOT NULL DEFAULT '',
             created_at datetime NOT NULL,
             updated_at datetime NOT NULL,
             PRIMARY KEY  (id),

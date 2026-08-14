@@ -1,0 +1,14 @@
+const fs=require('fs'), vm=require('vm');
+const src=fs.readFileSync(process.cwd() + '/n8-livechat-pro/assets/js/widget-v03.js','utf8');
+const a=src.indexOf('  function ratingHtml() {'), b=src.indexOf('\n  function sessionMetaHtml()',a);
+if(a<0||b<0) throw new Error('ratingHtml not found');
+const context={cfg:{csatEnabled:true,i18n:{rateUs:'Rate'}},state:{status:'open',closeReason:'',csatEligible:false,csatRating:null,csatThanks:false,csatSelection:0,csatComment:''},esc:v=>String(v)};
+vm.createContext(context); vm.runInContext(src.slice(a,b),context);
+if(context.ratingHtml()!=='') throw new Error('rating appeared while open');
+context.state.status='closed'; context.state.closeReason='idle'; context.state.csatEligible=false;
+if(context.ratingHtml()!=='') throw new Error('rating appeared after idle close');
+context.state.closeReason='agent'; context.state.csatEligible=false;
+if(context.ratingHtml()!=='') throw new Error('rating appeared after agent close');
+context.state.closeReason='visitor'; context.state.csatEligible=true;
+if(!context.ratingHtml().includes('n8lc-csat-faces')) throw new Error('rating missing after eligible visitor close');
+console.log('rating lifecycle JS test passed');

@@ -445,7 +445,7 @@ final class N8LC_REST {
         $reopen     = N8LC_Presence::is_online() ? 'open' : 'pending';
         $wpdb->query(
             $wpdb->prepare(
-                'UPDATE ' . N8LC_DB::table( 'conversations' ) . ' SET unread_agent=unread_agent+1,status=IF(status=%s,%s,status),last_message_at=%s,updated_at=%s WHERE id=%d',
+                'UPDATE ' . N8LC_DB::table( 'conversations' ) . " SET unread_agent=unread_agent+1,status=IF(status=%s,%s,status),closed_at=NULL,closed_reason='',last_message_at=%s,updated_at=%s WHERE id=%d",
                 'closed',
                 $reopen,
                 $now,
@@ -464,7 +464,18 @@ final class N8LC_REST {
         delete_transient( 'n8lc_vtyping_' . $conversation_id );
         N8LC_DB::log_event( 'visitor_message', array( 'conversation_id' => $conversation_id, 'visitor_id' => $visitor_id ) );
         do_action( 'n8lc_message_created', $message_id, $conversation_id, 'visitor' );
-        return rest_ensure_response( array( 'message_id' => $message_id, 'created_at' => $now ) );
+        return rest_ensure_response( array(
+            'message_id'  => $message_id,
+            'created_at'  => $now,
+            'message'     => array(
+                'id'            => $message_id,
+                'sender_type'   => 'visitor',
+                'body'          => $body,
+                'message_type'  => 'text',
+                'is_private'    => 0,
+                'created_at'    => $now,
+            ),
+        ) );
     }
 
     public function heartbeat( WP_REST_Request $request ) {
@@ -513,7 +524,7 @@ final class N8LC_REST {
         }
         $row = $wpdb->get_row(
             $wpdb->prepare(
-                'SELECT c.status,c.priority,c.agent_id,c.csat_rating,c.created_at,v.last_seen FROM ' . N8LC_DB::table( 'conversations' ) . ' c INNER JOIN ' . N8LC_DB::table( 'visitors' ) . ' v ON v.id=c.visitor_id WHERE c.id=%d',
+                'SELECT c.status,c.priority,c.agent_id,c.csat_rating,c.created_at,c.closed_reason,v.last_seen FROM ' . N8LC_DB::table( 'conversations' ) . ' c INNER JOIN ' . N8LC_DB::table( 'visitors' ) . ' v ON v.id=c.visitor_id WHERE c.id=%d',
                 $conversation_id
             ),
             ARRAY_A
@@ -527,6 +538,8 @@ final class N8LC_REST {
             'status'               => $row ? $row['status'] : 'open',
             'priority'             => $row ? $row['priority'] : 'normal',
             'csat_rating'          => $row && null !== $row['csat_rating'] ? (int) $row['csat_rating'] : null,
+            'csat_eligible'        => $row ? $this->conversation_csat_eligible( $conversation_id, isset( $row['closed_reason'] ) ? $row['closed_reason'] : '' ) : false,
+            'closed_reason'        => $row && isset( $row['closed_reason'] ) ? sanitize_key( $row['closed_reason'] ) : '',
             'agent_typing'         => is_array( $typing ) ? $typing : null,
             'availability'         => N8LC_Presence::status(),
             'session_started_at'   => $row ? $row['created_at'] : null,
@@ -562,14 +575,18 @@ final class N8LC_REST {
         $now = current_time( 'mysql' );
         $wpdb->update(
             N8LC_DB::table( 'conversations' ),
-            array( 'status' => 'closed', 'closed_at' => $now, 'updated_at' => $now ),
+            array( 'status' => 'closed', 'closed_at' => $now, 'closed_reason' => 'visitor', 'updated_at' => $now ),
             array( 'id' => $conversation_id ),
-            array( '%s', '%s', '%s' ),
+            array( '%s', '%s', '%s', '%s' ),
             array( '%d' )
         );
         N8LC_DB::log_event( 'visitor_closed', array( 'conversation_id' => $conversation_id ) );
         do_action( 'n8lc_conversation_updated', $conversation_id, array( 'status' => 'closed' ) );
-        return rest_ensure_response( array( 'ok' => true ) );
+        return rest_ensure_response( array(
+            'ok'           => true,
+            'close_reason' => 'visitor',
+            'can_rate'     => $this->conversation_csat_eligible( $conversation_id, 'visitor' ),
+        ) );
     }
 
     public function visitor_rating( WP_REST_Request $request ) {
@@ -582,6 +599,9 @@ final class N8LC_REST {
         }
         if ( ! N8LC_Security::verify_visitor_access( $conversation_id, $token ) ) {
             return new WP_Error( 'n8lc_forbidden', __( 'Invalid chat session.', 'n8-livechat-pro' ), array( 'status' => 403 ) );
+        }
+        if ( ! $this->conversation_csat_eligible( $conversation_id ) ) {
+            return new WP_Error( 'n8lc_csat_not_ready', __( 'Feedback is available after a completed support conversation.', 'n8-livechat-pro' ), array( 'status' => 409 ) );
         }
         $rating  = absint( $request->get_param( 'rating' ) );
         $comment = N8LC_Security::sanitize_message( $request->get_param( 'comment' ) );
@@ -688,10 +708,15 @@ final class N8LC_REST {
     }
 
     public function admin_conversation_state( WP_REST_Request $request ) {
+        global $wpdb;
         $id = absint( $request['id'] );
+        $latest_message_id = (int) $wpdb->get_var( $wpdb->prepare( 'SELECT MAX(id) FROM ' . N8LC_DB::table( 'messages' ) . ' WHERE conversation_id=%d', $id ) );
+        $status = (string) $wpdb->get_var( $wpdb->prepare( 'SELECT status FROM ' . N8LC_DB::table( 'conversations' ) . ' WHERE id=%d', $id ) );
         return rest_ensure_response( array(
-            'visitor_typing' => (bool) get_transient( 'n8lc_vtyping_' . $id ),
-            'tags'           => $this->tags_for_conversation( $id ),
+            'visitor_typing'   => (bool) get_transient( 'n8lc_vtyping_' . $id ),
+            'latest_message_id'=> $latest_message_id,
+            'status'           => $status,
+            'tags'             => $this->tags_for_conversation( $id ),
         ) );
     }
 
@@ -725,12 +750,25 @@ final class N8LC_REST {
         if ( $is_private ) {
             $wpdb->query( $wpdb->prepare( 'UPDATE ' . N8LC_DB::table( 'conversations' ) . ' SET agent_id=COALESCE(agent_id,%d),updated_at=%s WHERE id=%d', $agent_id, $now, $id ) );
         } else {
-            $wpdb->query( $wpdb->prepare( 'UPDATE ' . N8LC_DB::table( 'conversations' ) . ' SET agent_id=COALESCE(agent_id,%d),unread_visitor=unread_visitor+1,last_message_at=%s,updated_at=%s WHERE id=%d', $agent_id, $now, $now, $id ) );
+            $wpdb->query( $wpdb->prepare( "UPDATE " . N8LC_DB::table( 'conversations' ) . " SET agent_id=COALESCE(agent_id,%d),status='open',closed_at=NULL,closed_reason='',unread_visitor=unread_visitor+1,last_message_at=%s,updated_at=%s WHERE id=%d", $agent_id, $now, $now, $id ) );
         }
         delete_transient( 'n8lc_atyping_' . $id );
         N8LC_DB::log_event( $is_private ? 'private_note' : 'agent_message', array( 'conversation_id' => $id, 'agent_id' => $agent_id ) );
         do_action( 'n8lc_message_created', $message_id, $id, $is_private ? 'note' : 'agent' );
-        return rest_ensure_response( array( 'message_id' => $message_id, 'created_at' => $now ) );
+        return rest_ensure_response( array(
+            'message_id' => $message_id,
+            'created_at' => $now,
+            'status'     => $is_private ? null : 'open',
+            'message'    => array(
+                'id'           => $message_id,
+                'sender_type'  => $is_private ? 'note' : 'agent',
+                'sender_id'    => $agent_id,
+                'body'         => $body,
+                'message_type' => $is_private ? 'note' : 'text',
+                'is_private'   => $is_private ? 1 : 0,
+                'created_at'   => $now,
+            ),
+        ) );
     }
 
     public function admin_typing( WP_REST_Request $request ) {
@@ -776,11 +814,15 @@ final class N8LC_REST {
             $data['status'] = $status;
             $formats[]      = '%s';
             if ( 'closed' === $status ) {
-                $data['closed_at'] = current_time( 'mysql' );
-                $formats[]         = '%s';
+                $data['closed_at']     = current_time( 'mysql' );
+                $formats[]              = '%s';
+                $data['closed_reason']  = 'agent';
+                $formats[]              = '%s';
             } else {
-                $data['closed_at'] = null;
-                $formats[]         = '%s';
+                $data['closed_at']      = null;
+                $formats[]              = '%s';
+                $data['closed_reason']  = '';
+                $formats[]              = '%s';
             }
         }
         if ( in_array( $priority, array( 'low', 'normal', 'high', 'urgent' ), true ) ) {
@@ -1033,12 +1075,12 @@ final class N8LC_REST {
         $v     = N8LC_DB::table( 'visitors' );
         $rows  = $wpdb->get_results(
             $wpdb->prepare(
-                "SELECT c.id,c.status,c.priority,c.subject,c.source,c.agent_id,c.department_id,c.first_response_at,c.first_response_due_at,c.resolution_due_at,c.sla_breached,c.csat_rating,c.created_at,c.closed_at,v.name visitor_name,v.email visitor_email,v.phone visitor_phone FROM {$c} c INNER JOIN {$v} v ON v.id=c.visitor_id ORDER BY c.id DESC LIMIT %d",
+                "SELECT c.id,c.status,c.priority,c.subject,c.source,c.agent_id,c.department_id,c.first_response_at,c.first_response_due_at,c.resolution_due_at,c.sla_breached,c.csat_rating,c.created_at,c.closed_at,c.closed_reason,v.name visitor_name,v.email visitor_email,v.phone visitor_phone FROM {$c} c INNER JOIN {$v} v ON v.id=c.visitor_id ORDER BY c.id DESC LIMIT %d",
                 $limit
             ),
             ARRAY_A
         );
-        $headers = array( 'id','status','priority','subject','source','agent_id','department_id','first_response_at','first_response_due_at','resolution_due_at','sla_breached','csat_rating','created_at','closed_at','visitor_name','visitor_email','visitor_phone' );
+        $headers = array( 'id','status','priority','subject','source','agent_id','department_id','first_response_at','first_response_due_at','resolution_due_at','sla_breached','csat_rating','created_at','closed_at','closed_reason','visitor_name','visitor_email','visitor_phone' );
         $lines   = array( $this->csv_line( $headers ) );
         foreach ( $rows as $row ) {
             $values = array();
@@ -1118,9 +1160,9 @@ final class N8LC_REST {
 
         if ( 'visitor' === $sender_type ) {
             $reopen = N8LC_Availability::is_open() ? 'open' : 'pending';
-            $wpdb->query( $wpdb->prepare( 'UPDATE ' . N8LC_DB::table( 'conversations' ) . ' SET unread_agent=unread_agent+1,status=IF(status=%s,%s,status),last_message_at=%s,updated_at=%s WHERE id=%d', 'closed', $reopen, $now, $now, $conversation_id ) );
+            $wpdb->query( $wpdb->prepare( "UPDATE " . N8LC_DB::table( 'conversations' ) . " SET unread_agent=unread_agent+1,status=IF(status=%s,%s,status),closed_at=NULL,closed_reason='',last_message_at=%s,updated_at=%s WHERE id=%d", 'closed', $reopen, $now, $now, $conversation_id ) );
         } else {
-            $wpdb->query( $wpdb->prepare( 'UPDATE ' . N8LC_DB::table( 'conversations' ) . ' SET agent_id=COALESCE(agent_id,%d),unread_visitor=unread_visitor+1,last_message_at=%s,updated_at=%s WHERE id=%d', absint( $sender_id ), $now, $now, $conversation_id ) );
+            $wpdb->query( $wpdb->prepare( "UPDATE " . N8LC_DB::table( 'conversations' ) . " SET agent_id=COALESCE(agent_id,%d),status='open',closed_at=NULL,closed_reason='',unread_visitor=unread_visitor+1,last_message_at=%s,updated_at=%s WHERE id=%d", absint( $sender_id ), $now, $now, $conversation_id ) );
         }
 
         N8LC_DB::log_event( 'attachment_uploaded', array( 'conversation_id' => $conversation_id, 'agent_id' => 'agent' === $sender_type ? $sender_id : null, 'payload' => array( 'mime' => $mime, 'size' => $size ) ) );
@@ -1135,6 +1177,36 @@ final class N8LC_REST {
             'attachment_size' => $size,
             'created_at'      => $now,
         ) );
+    }
+
+    private function conversation_csat_eligible( $conversation_id, $closed_reason = '' ) {
+        global $wpdb;
+        $conversation_id = absint( $conversation_id );
+        if ( ! $conversation_id ) {
+            return false;
+        }
+        $conversation = $wpdb->get_row(
+            $wpdb->prepare(
+                'SELECT status,closed_reason FROM ' . N8LC_DB::table( 'conversations' ) . ' WHERE id=%d',
+                $conversation_id
+            ),
+            ARRAY_A
+        );
+        if ( ! $conversation || 'closed' !== $conversation['status'] ) {
+            return false;
+        }
+        $reason = $closed_reason ? sanitize_key( $closed_reason ) : sanitize_key( isset( $conversation['closed_reason'] ) ? $conversation['closed_reason'] : '' );
+        if ( 'visitor' !== $reason ) {
+            return false;
+        }
+        $counts = $wpdb->get_row(
+            $wpdb->prepare(
+                "SELECT SUM(CASE WHEN sender_type='visitor' AND is_private=0 THEN 1 ELSE 0 END) visitor_count, SUM(CASE WHEN sender_type='agent' AND is_private=0 THEN 1 ELSE 0 END) agent_count FROM " . N8LC_DB::table( 'messages' ) . ' WHERE conversation_id=%d',
+                $conversation_id
+            ),
+            ARRAY_A
+        );
+        return $counts && absint( $counts['visitor_count'] ) > 0 && absint( $counts['agent_count'] ) > 0;
     }
 
     private function tags_for_conversation( $conversation_id ) {
