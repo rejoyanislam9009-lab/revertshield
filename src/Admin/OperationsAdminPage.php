@@ -118,11 +118,11 @@ final class OperationsAdminPage {
 
 		check_admin_referer( 'revertshield_health_schedule' );
 
-		$interval = isset( $_POST['scheduled_health_interval'] ) ? absint( wp_unslash( $_POST['scheduled_health_interval'] ) ) : 24;
-		$interval = in_array( $interval, array( 1, 6, 12, 24 ), true ) ? $interval : 24;
-		$enabled  = isset( $_POST['scheduled_health_enabled'] ) && '1' === sanitize_text_field( wp_unslash( $_POST['scheduled_health_enabled'] ) ) ? 1 : 0;
-		$settings = get_option( 'revertshield_settings', array() );
-		$settings = is_array( $settings ) ? $settings : array();
+		$interval                              = isset( $_POST['scheduled_health_interval'] ) ? absint( wp_unslash( $_POST['scheduled_health_interval'] ) ) : 24;
+		$interval                              = in_array( $interval, array( 1, 6, 12, 24 ), true ) ? $interval : 24;
+		$enabled                               = isset( $_POST['scheduled_health_enabled'] ) && '1' === sanitize_text_field( wp_unslash( $_POST['scheduled_health_enabled'] ) ) ? 1 : 0;
+		$settings                              = get_option( 'revertshield_settings', array() );
+		$settings                              = is_array( $settings ) ? $settings : array();
 		$settings['scheduled_health_enabled']  = $enabled;
 		$settings['scheduled_health_interval'] = $interval;
 		update_option( 'revertshield_settings', $settings, false );
