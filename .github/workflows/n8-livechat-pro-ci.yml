@@ -1,0 +1,38 @@
+name: N8 LiveChat Pro CI
+
+on:
+  push:
+    branches:
+      - feature/n8-livechat-pro
+    paths:
+      - 'n8-livechat-pro/**'
+      - '.github/workflows/n8-livechat-pro-ci.yml'
+  pull_request:
+    paths:
+      - 'n8-livechat-pro/**'
+      - '.github/workflows/n8-livechat-pro-ci.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  syntax:
+    name: PHP and JavaScript syntax
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '7.4'
+          coverage: none
+
+      - name: PHP syntax check
+        run: find n8-livechat-pro -type f -name '*.php' -print0 | xargs -0 -n1 php -l
+
+      - name: JavaScript syntax check
+        run: |
+          node --check n8-livechat-pro/assets/js/admin.js
+          node --check n8-livechat-pro/assets/js/widget.js
