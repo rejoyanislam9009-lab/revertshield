@@ -8,6 +8,7 @@
 namespace RevertShield\Core;
 
 use RevertShield\Database\Migrator;
+use RevertShield\Health\ScheduledHealthCheck;
 use RevertShield\Snapshot\SnapshotCleanup;
 use RevertShield\Support\Cleanup;
 
@@ -31,8 +32,8 @@ final class Activator {
 	 *
 	 * This supports Multisite network activation without iterating an unbounded
 	 * network during activation. Each existing site is repaired on first load.
-	 * Scheduling is idempotent because both cleanup services check for an
-	 * existing event before adding one.
+	 * Scheduling is idempotent because services reconcile existing events before
+	 * adding or replacing them.
 	 *
 	 * @return void
 	 */
@@ -62,6 +63,8 @@ final class Activator {
 				'maintenance_window_enabled' => 0,
 				'maintenance_window_start'   => '02:00',
 				'maintenance_window_end'     => '05:00',
+				'scheduled_health_enabled'   => 0,
+				'scheduled_health_interval'  => 24,
 			),
 			'',
 			false
@@ -76,5 +79,6 @@ final class Activator {
 	private static function ensure_schedules() {
 		Cleanup::schedule();
 		SnapshotCleanup::schedule();
+		ScheduledHealthCheck::sync_schedule();
 	}
 }
