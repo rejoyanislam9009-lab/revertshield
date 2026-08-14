@@ -99,9 +99,21 @@
 - Real WordPress Multisite runtime regression coverage for provisioning, storage isolation, snapshot ownership, cross-site rejection, and mutation fail-closed behavior.
 - No network-wide automatic rollback or generic database rollback.
 
-## Phase 5C - Remaining ecosystem/control adapters
+## Phase 6 - Operations and observability - in progress for 0.9.0
+
+- Operations admin surface layered on the existing 0.8.0 safety baseline.
+- Administrator-controlled snapshot pin/protect state without rewriting verified manifests or content-addressed objects.
+- Original snapshot expiration preserved in a bounded site-scoped registry and restored on explicit unpin.
+- Optional scheduled local health checks through WordPress Cron at bounded 1, 6, 12, or 24 hour cadences, disabled by default.
+- Scheduled health execution reuses the existing multi-probe local health suite and persistence path.
+- Read-only WP-CLI commands for operational status, persisted health state, recent snapshot metadata, snapshot inspection, and optional integrity verification.
+- No WP-CLI guarded-update, recovery, pin/unpin, or rollback mutation in 0.9.0.
+- Minimum/latest real WordPress operations regression coverage.
+- Stable 0.8.0 to 0.9.0 in-place upgrade coverage with state-preservation assertions.
+
+## Phase 7 - Remaining ecosystem/control adapters
 
 - Network-scoped guarded plugin update/recovery only after a bounded network-wide health contract is defined and verified.
-- WP-CLI commands.
-- REST endpoints with explicit permission callbacks.
-- Optional external notification adapters only if they can preserve RevertShield's local-first privacy model and explicit administrator control.
+- Read-only REST endpoints with explicit permission callbacks before any mutation surface is considered.
+- Optional external notification adapters only if they preserve RevertShield's local-first privacy model and explicit administrator control.
+- Additional ecosystem health adapters through the bounded read-only probe contract.

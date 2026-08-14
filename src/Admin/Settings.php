@@ -40,6 +40,8 @@ final class Settings {
 					'maintenance_window_enabled' => 0,
 					'maintenance_window_start'   => '02:00',
 					'maintenance_window_end'     => '05:00',
+					'scheduled_health_enabled'   => 0,
+					'scheduled_health_interval'  => 24,
 				),
 			)
 		);
@@ -48,22 +50,25 @@ final class Settings {
 	/**
 	 * Sanitize plugin settings.
 	 *
-	 * Snapshot retention is preserved when the main settings form does not
-	 * include that field.
+	 * Snapshot retention and scheduled-health settings are preserved when the
+	 * main dashboard settings form does not include those fields.
 	 *
 	 * @param mixed $input Raw input.
 	 * @return array
 	 */
 	public function sanitize( $input ) {
-		$input    = is_array( $input ) ? $input : array();
-		$current  = get_option( 'revertshield_settings', array() );
-		$current  = is_array( $current ) ? $current : array();
-		$days     = isset( $input['retention_days'] ) ? absint( $input['retention_days'] ) : 90;
-		$snapshot = isset( $input['snapshot_retention_days'] )
+		$input           = is_array( $input ) ? $input : array();
+		$current         = get_option( 'revertshield_settings', array() );
+		$current         = is_array( $current ) ? $current : array();
+		$days            = isset( $input['retention_days'] ) ? absint( $input['retention_days'] ) : 90;
+		$snapshot        = isset( $input['snapshot_retention_days'] )
 			? absint( $input['snapshot_retention_days'] )
 			: ( isset( $current['snapshot_retention_days'] ) ? absint( $current['snapshot_retention_days'] ) : 7 );
-		$start    = $this->sanitize_time( isset( $input['maintenance_window_start'] ) ? $input['maintenance_window_start'] : '02:00', '02:00' );
-		$end      = $this->sanitize_time( isset( $input['maintenance_window_end'] ) ? $input['maintenance_window_end'] : '05:00', '05:00' );
+		$start           = $this->sanitize_time( isset( $input['maintenance_window_start'] ) ? $input['maintenance_window_start'] : '02:00', '02:00' );
+		$end             = $this->sanitize_time( isset( $input['maintenance_window_end'] ) ? $input['maintenance_window_end'] : '05:00', '05:00' );
+		$health_enabled  = ! empty( $current['scheduled_health_enabled'] ) ? 1 : 0;
+		$health_interval = isset( $current['scheduled_health_interval'] ) ? absint( $current['scheduled_health_interval'] ) : 24;
+		$health_interval = in_array( $health_interval, array( 1, 6, 12, 24 ), true ) ? $health_interval : 24;
 
 		return array(
 			'retention_days'             => max( 1, min( 3650, $days ) ),
@@ -73,6 +78,8 @@ final class Settings {
 			'maintenance_window_enabled' => empty( $input['maintenance_window_enabled'] ) ? 0 : 1,
 			'maintenance_window_start'   => $start,
 			'maintenance_window_end'     => $end,
+			'scheduled_health_enabled'   => $health_enabled,
+			'scheduled_health_interval'  => $health_interval,
 		);
 	}
 
