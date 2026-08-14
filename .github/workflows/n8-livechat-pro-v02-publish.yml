@@ -29,7 +29,21 @@ jobs:
 
       - name: Reconstruct installable release
         run: |
-          cat dist/n8-livechat-pro-0.2.0.zip.b64.part* | base64 --decode > dist/n8-livechat-pro-0.2.0.zip
+          cat \
+            dist/n8-livechat-pro-0.2.0.zip.b64.fixed00 \
+            dist/n8-livechat-pro-0.2.0.zip.b64.fixed01 \
+            dist/n8-livechat-pro-0.2.0.zip.b64.fixed02 \
+            dist/n8-livechat-pro-0.2.0.zip.b64.fixed03a \
+            dist/n8-livechat-pro-0.2.0.zip.b64.fixed03b \
+            dist/n8-livechat-pro-0.2.0.zip.b64.fixed03c \
+            dist/n8-livechat-pro-0.2.0.zip.b64.fixed03d \
+            dist/n8-livechat-pro-0.2.0.zip.b64.fixed04 \
+            dist/n8-livechat-pro-0.2.0.zip.b64.part02 \
+            dist/n8-livechat-pro-0.2.0.zip.b64.part03 \
+            dist/n8-livechat-pro-0.2.0.zip.b64.part04 \
+            dist/n8-livechat-pro-0.2.0.zip.b64.part05 \
+            dist/n8-livechat-pro-0.2.0.zip.b64.part06 \
+            | base64 --decode > dist/n8-livechat-pro-0.2.0.zip
           sha256sum -c dist/n8-livechat-pro-0.2.0.sha256
           unzip -t dist/n8-livechat-pro-0.2.0.zip
 
