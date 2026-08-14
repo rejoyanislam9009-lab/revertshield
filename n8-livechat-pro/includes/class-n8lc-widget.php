@@ -4,6 +4,7 @@ defined( 'ABSPATH' ) || exit;
 
 final class N8LC_Widget {
     private static $instance;
+    private static $rendered = false;
 
     public static function instance() {
         if ( ! self::$instance ) {
@@ -16,7 +17,10 @@ final class N8LC_Widget {
 
     public function hooks() {
         add_action( 'wp_enqueue_scripts', array( $this, 'enqueue' ) );
-        add_action( 'wp_footer', array( $this, 'render' ), 99 );
+        // Render the mount before footer scripts execute. wp_body_open gives modern
+        // themes an early mount point; wp_footer priority 5 is the fallback.
+        add_action( 'wp_body_open', array( $this, 'render' ), 5 );
+        add_action( 'wp_footer', array( $this, 'render' ), 5 );
     }
 
     public function enqueue() {
@@ -95,10 +99,16 @@ final class N8LC_Widget {
     }
 
     public function render() {
+        if ( self::$rendered ) {
+            return;
+        }
+
         $settings = get_option( 'n8lc_settings', array() );
         if ( empty( $settings['enabled'] ) ) {
             return;
         }
+
+        self::$rendered = true;
         echo '<div id="n8lc-widget-root" class="n8lc-widget-root" aria-live="polite"></div>';
     }
 }
