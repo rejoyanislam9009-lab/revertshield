@@ -1,0 +1,126 @@
+name: N8 LiveChat Pro v0.5 Conversation Experience
+
+on:
+  push:
+    branches:
+      - feature/n8-livechat-pro-v0.5
+    paths:
+      - 'dist/v050.patch.gz.b64.*'
+      - '.github/workflows/n8-livechat-pro-v050-ci.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  validate-and-publish:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout v0.5 branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Reconstruct and verify exact patch
+        run: |
+          cat dist/v050.patch.gz.b64.00 dist/v050.patch.gz.b64.01 dist/v050.patch.gz.b64.02 dist/v050.patch.gz.b64.03 dist/v050.patch.gz.b64.04 dist/v050.patch.gz.b64.05 > /tmp/v050.patch.gz.b64
+          echo '7bc20a6d887e5abf620353ebf4cbbe38d4cab6f1275703ad6b644acfb788fa7c  /tmp/v050.patch.gz.b64' | sha256sum -c -
+          base64 -d /tmp/v050.patch.gz.b64 | gzip -dc > /tmp/v050.patch
+          echo 'f7a569a0efcd4aa1ce55c31a8b40d218ff3cec9bec1803e71751fd3a96f7d335  /tmp/v050.patch' | sha256sum -c -
+          patch -p1 --dry-run < /tmp/v050.patch
+          patch -p1 < /tmp/v050.patch
+
+      - name: Verify conversation experience regression fixes
+        run: |
+          grep -F 'Version:     0.5.0' n8-livechat-pro/n8-livechat-pro.php
+          grep -F "define( 'N8LC_VERSION', '0.5.0' );" n8-livechat-pro/n8-livechat-pro.php
+          grep -F 'Stable tag: 0.5.0' n8-livechat-pro/readme.txt
+          grep -F "require_once N8LC_DIR . 'includes/class-n8lc-presence.php';" n8-livechat-pro/n8-livechat-pro.php
+          grep -F "draft:" n8-livechat-pro/assets/js/widget-v03.js
+          grep -F "state.draft = message.value" n8-livechat-pro/assets/js/widget-v03.js
+          grep -F -- '-webkit-text-fill-color:#0f172a!important' n8-livechat-pro/assets/css/widget-v04.css
+          grep -F "register_rest_route( self::NS, '/admin/presence'" n8-livechat-pro/includes/class-n8lc-rest.php
+          grep -F "'chat_idle_timeout_minutes'" n8-livechat-pro/includes/class-n8lc-platform.php
+          grep -F 'process_idle_conversations' n8-livechat-pro/includes/class-n8lc-automation.php
+          grep -F 'n8lc-csat-faces' n8-livechat-pro/assets/js/widget-v03.js
+          grep -F 'Visitor is typing' n8-livechat-pro/assets/js/admin.js
+          grep -F "N8LC_Presence::status" n8-livechat-pro/includes/class-n8lc-widget.php
+
+      - name: Setup PHP 7.4
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '7.4'
+          coverage: none
+
+      - name: PHP 7.4 syntax gate
+        run: find n8-livechat-pro -type f -name '*.php' -print0 | xargs -0 -n1 php -l
+
+      - name: Setup PHP 8.4
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          coverage: none
+
+      - name: PHP 8.4 syntax gate
+        run: find n8-livechat-pro -type f -name '*.php' -print0 | xargs -0 -n1 php -l
+
+      - name: Presence runtime simulation
+        run: |
+          cat > /tmp/n8lc-presence-test.php <<'PHP'
+          <?php
+          define('ABSPATH', __DIR__ . '/');
+          $pool = array();
+          $open = true;
+          function absint($v){ return abs((int)$v); }
+          function get_current_user_id(){ return 1; }
+          function user_can($id,$cap){ return in_array($cap,array('n8lc_reply_chat','manage_options'),true); }
+          function get_transient($key){ global $pool; return $pool; }
+          function set_transient($key,$value,$ttl){ global $pool; $pool=$value; return true; }
+          function delete_transient($key){ global $pool; $pool=array(); return true; }
+          function get_userdata($id){ return (object)array('display_name'=>'Agent '.$id); }
+          function sanitize_text_field($v){ return trim(strip_tags($v)); }
+          class N8LC_Availability { public static function is_open($settings=null){ global $open; return $open; } }
+          require getcwd() . '/n8-livechat-pro/includes/class-n8lc-presence.php';
+          if ('offline' !== N8LC_Presence::status()) { exit(10); }
+          N8LC_Presence::touch(7);
+          if ('online' !== N8LC_Presence::status()) { exit(11); }
+          $open=false;
+          if ('away' !== N8LC_Presence::status()) { exit(12); }
+          N8LC_Presence::clear(7);
+          if ('offline' !== N8LC_Presence::status()) { exit(13); }
+          echo "presence runtime test passed\n";
+          PHP
+          php /tmp/n8lc-presence-test.php
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: JavaScript syntax gate
+        run: find n8-livechat-pro/assets/js -type f -name '*.js' -print0 | xargs -0 -n1 node --check
+
+      - name: Build and verify installable ZIP
+        run: |
+          rm -f dist/n8-livechat-pro-0.5.0.zip dist/n8-livechat-pro-0.5.0.sha256
+          zip -qr dist/n8-livechat-pro-0.5.0.zip n8-livechat-pro -x '*/.DS_Store'
+          sha256sum dist/n8-livechat-pro-0.5.0.zip > dist/n8-livechat-pro-0.5.0.sha256
+          unzip -t dist/n8-livechat-pro-0.5.0.zip
+
+      - name: Upload verified release artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: n8-livechat-pro-0.5.0
+          path: |
+            dist/n8-livechat-pro-0.5.0.zip
+            dist/n8-livechat-pro-0.5.0.sha256
+          if-no-files-found: error
+
+      - name: Publish verified source and package
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git rm dist/v050.patch.gz.b64.00 dist/v050.patch.gz.b64.01 dist/v050.patch.gz.b64.02 dist/v050.patch.gz.b64.03 dist/v050.patch.gz.b64.04 dist/v050.patch.gz.b64.05
+          git add n8-livechat-pro dist/n8-livechat-pro-0.5.0.zip dist/n8-livechat-pro-0.5.0.sha256
+          git commit -m 'Publish N8 LiveChat Pro 0.5 conversation experience'
+          git push
