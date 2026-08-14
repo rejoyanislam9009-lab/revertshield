@@ -24,6 +24,8 @@ if ( empty( $revertshield_settings['delete_on_uninstall'] ) ) {
 	return;
 }
 
+wp_clear_scheduled_hook( 'revertshield_scheduled_health_check' );
+
 $revertshield_uploads = wp_upload_dir( null, false );
 if ( empty( $revertshield_uploads['error'] ) && ! empty( $revertshield_uploads['basedir'] ) ) {
 	$revertshield_basedir = untrailingslashit( wp_normalize_path( $revertshield_uploads['basedir'] ) );
@@ -57,3 +59,4 @@ $wpdb->query( $wpdb->prepare( 'DROP TABLE IF EXISTS %i', $revertshield_snapshots
 
 delete_option( 'revertshield_settings' );
 delete_option( 'revertshield_schema_version' );
+delete_option( 'revertshield_pinned_snapshots' );
