@@ -49,13 +49,22 @@
     csatEligible: false,
     closeReason: '',
     seenMessageIds: {},
-    messagesLoading: null
+    messagesLoading: null,
+    outbox: [],
+    sendingQueue: false,
+    tempMessageSeq: 0,
+    feedbackPending: false,
+    feedbackFinalizeTimer: null
   };
 
   try {
     state.session = JSON.parse(localStorage.getItem(storageKey) || 'null');
   } catch (e) {
     state.session = null;
+  }
+  if (state.session) {
+    state.feedbackPending = !!state.session.feedback_pending;
+    state.closeReason = state.session.close_reason || '';
   }
 
   root.style.setProperty('--n8lc-accent', theme.a);
@@ -116,6 +125,9 @@
   function api(path, options) {
     options = options || {};
     options.headers = options.headers || {};
+    options.cache = 'no-store';
+    options.credentials = 'same-origin';
+    var method = String(options.method || 'GET').toUpperCase();
     if (options.body && !(options.body instanceof FormData) && typeof options.body !== 'string') {
       options.headers['Content-Type'] = 'application/json';
       options.body = JSON.stringify(options.body);
@@ -123,12 +135,21 @@
       options.headers['Content-Type'] = 'application/json';
     }
     if (state.session && state.session.token) options.headers['X-N8LC-Token'] = state.session.token;
-    return fetch(cfg.restRoot + path, options).then(function (res) {
+    var url = cfg.restRoot + path;
+    if (method === 'GET') url += (url.indexOf('?') === -1 ? '?' : '&') + '_n8lc=' + Date.now();
+    return fetch(url, options).then(function (res) {
       return res.json().then(function (body) {
         if (!res.ok) throw new Error(body && body.message ? body.message : cfg.i18n.error);
         return body;
       });
     });
+  }
+
+  function persistSessionState() {
+    if (!state.session) return;
+    state.session.feedback_pending = !!state.feedbackPending;
+    state.session.close_reason = state.closeReason || '';
+    try { localStorage.setItem(storageKey, JSON.stringify(state.session)); } catch (e) {}
   }
 
   function launcherHtml() {
@@ -344,14 +365,15 @@
       }
     }
     var avatar = who === 'agent' ? '<span class="n8lc-message-avatar">' + avatarHtml() + '</span>' : '';
-    return '<div class="n8lc-msg n8lc-msg-' + who + '">' + avatar + '<div class="n8lc-msg-stack"><div class="n8lc-bubble">' + body + '</div><time>' + esc(timeLabel(msg.created_at)) + '</time></div></div>';
+    var delivery = msg._pending ? '<small class="n8lc-message-delivery">Sending…</small>' : (msg._failed ? '<small class="n8lc-message-delivery is-error">Not sent</small>' : '');
+    return '<div class="n8lc-msg n8lc-msg-' + who + (msg._pending ? ' is-pending' : '') + (msg._failed ? ' is-failed' : '') + '">' + avatar + '<div class="n8lc-msg-stack"><div class="n8lc-bubble">' + body + '</div><time>' + esc(timeLabel(msg.created_at)) + '</time>' + delivery + '</div></div>';
   }
 
   function ratingHtml() {
-    if (!cfg.csatEnabled || state.status !== 'closed' || !state.csatEligible) return '';
+    if (!cfg.csatEnabled || state.status !== 'closed' || !(state.csatEligible || state.feedbackPending)) return '';
     if (state.csatRating || state.csatThanks) return '<div class="n8lc-csat-thanks"><span>💚</span><strong>Thank you for your feedback!</strong><small>Your review helps us improve support.</small></div>';
     var faces = [{n:1,e:'😞',l:'Poor'},{n:2,e:'🙁',l:'Not good'},{n:3,e:'😐',l:'Okay'},{n:4,e:'🙂',l:'Good'},{n:5,e:'😍',l:'Great'}];
-    return '<div class="n8lc-rating"><strong>' + esc(cfg.i18n.rateUs) + '</strong><small>How did this conversation feel?</small><div class="n8lc-csat-faces">' + faces.map(function (f) { return '<button type="button" class="' + (state.csatSelection===f.n?'is-selected':'') + '" data-rating="' + f.n + '" aria-label="' + esc(f.l) + '"><span>' + f.e + '</span><em>' + esc(f.l) + '</em></button>'; }).join('') + '</div><textarea id="n8lc-rating-comment" rows="2" maxlength="1000" placeholder="Tell us what went well or what we can improve (optional)">' + esc(state.csatComment || '') + '</textarea><button type="button" id="n8lc-submit-rating" class="n8lc-rating-submit" ' + (state.csatSelection?'':'disabled') + '>Send feedback</button><div id="n8lc-rating-status"></div></div>';
+    return '<div class="n8lc-rating"><strong>' + esc(cfg.i18n.rateUs) + '</strong><small>How did this conversation feel?</small><div class="n8lc-csat-faces">' + faces.map(function (f) { return '<button type="button" class="' + (state.csatSelection===f.n?'is-selected':'') + '" data-rating="' + f.n + '" aria-label="' + esc(f.l) + '"><span>' + f.e + '</span><em>' + esc(f.l) + '</em></button>'; }).join('') + '</div><textarea id="n8lc-rating-comment" rows="2" maxlength="1000" placeholder="Tell us what went well or what we can improve (optional)">' + esc(state.csatComment || '') + '</textarea><div class="n8lc-rating-actions"><button type="button" id="n8lc-skip-rating" class="n8lc-rating-skip">Skip & close</button><button type="button" id="n8lc-submit-rating" class="n8lc-rating-submit" ' + (state.csatSelection?'':'disabled') + '>Send feedback</button></div><div id="n8lc-rating-status"></div></div>';
   }
 
   function sessionMetaHtml() {
@@ -370,8 +392,9 @@
     var attach = cfg.uploadsEnabled ? '<input type="file" id="n8lc-visitor-file" class="n8lc-hidden-file"><button type="button" class="n8lc-attach" title="' + esc(cfg.i18n.attach) + '">' + icon('attach') + '</button>' : '';
     var closedText = state.closeReason === 'idle' ? 'This chat ended after inactivity. Send a message to continue.' : 'This conversation is closed. Sending a new message will reopen it.';
     var closed = state.status === 'closed' ? '<div class="n8lc-closed-note">' + esc(closedText) + '</div>' : '';
-    return '<div class="n8lc-chat"><div class="n8lc-messages" role="log">' + (messages || '<div class="n8lc-empty-chat"><span>' + icon('sparkle') + '</span><strong>Your conversation starts here</strong><p>Send a message and our team will jump in.</p></div>') + '</div>' + typingHtml() + ratingHtml() + closed +
-      sessionMetaHtml() + '<form class="n8lc-compose">' + attach + '<textarea name="message" rows="1" maxlength="5000" placeholder="' + esc(cfg.i18n.placeholder) + '" required>' + esc(state.draft || '') + '</textarea><button type="submit" class="n8lc-send" aria-label="' + esc(cfg.i18n.send) + '">' + icon('send') + '</button></form><div id="n8lc-upload-status" class="n8lc-upload-status"></div></div>';
+    var canCompose = state.status !== 'closed' || state.closeReason === 'idle';
+    var composer = canCompose ? '<form class="n8lc-compose">' + attach + '<textarea name="message" rows="1" maxlength="5000" placeholder="' + esc(cfg.i18n.placeholder) + '" required>' + esc(state.draft || '') + '</textarea><button type="submit" class="n8lc-send" aria-label="' + esc(cfg.i18n.send) + '">' + icon('send') + '</button></form><div id="n8lc-upload-status" class="n8lc-upload-status"></div>' : (state.closeReason === 'agent' ? '<div class="n8lc-ended-actions"><button type="button" id="n8lc-new-chat">Start a new chat</button></div>' : '');
+    return '<div class="n8lc-chat"><div class="n8lc-messages" role="log">' + (messages || '<div class="n8lc-empty-chat"><span>' + icon('sparkle') + '</span><strong>Your conversation starts here</strong><p>Send a message and our team will jump in.</p></div>') + '</div>' + typingHtml() + ratingHtml() + closed + sessionMetaHtml() + composer + '</div>';
   }
 
   function bindChat() {
@@ -396,6 +419,10 @@
     if (ratingComment) ratingComment.addEventListener('input', function () { state.csatComment = ratingComment.value; });
     var ratingSubmit = root.querySelector('#n8lc-submit-rating');
     if (ratingSubmit) ratingSubmit.addEventListener('click', submitRating);
+    var ratingSkip = root.querySelector('#n8lc-skip-rating');
+    if (ratingSkip) ratingSkip.addEventListener('click', function () { finishEndedSession(0); });
+    var newChat = root.querySelector('#n8lc-new-chat');
+    if (newChat) newChat.addEventListener('click', function () { finishEndedSession(0, true); });
   }
 
   function autoGrow(el) {
@@ -431,37 +458,55 @@
 
   function sendMessage(ev) {
     ev.preventDefault();
-    if (state.busy || !state.session) return;
+    if (!state.session) return;
     var form = ev.currentTarget;
     var textarea = form.querySelector('textarea');
-    var send = form.querySelector('.n8lc-send');
     var text = textarea.value.trim();
     if (!text) return;
-    state.busy = true;
-    if (send) send.disabled = true;
-    var submittedDraft = textarea.value;
-    api('messages', { method: 'POST', body: { conversation_id: state.session.conversation_id, message: text, url: window.location.href } }).then(function (payload) {
-      if (textarea.value === submittedDraft) {
-        textarea.value = '';
-        state.draft = '';
-      } else {
-        state.draft = textarea.value;
+    var tempId = 'tmp-' + (++state.tempMessageSeq) + '-' + Date.now();
+    var optimistic = { id: tempId, sender_type: 'visitor', body: text, message_type: 'text', is_private: 0, created_at: new Date().toISOString(), _pending: true };
+    state.messages.push(optimistic);
+    state.outbox.push({ tempId: tempId, text: text, url: window.location.href });
+    textarea.value = '';
+    state.draft = '';
+    state.status = state.availability === 'online' ? 'open' : 'pending';
+    state.csatEligible = false;
+    state.feedbackPending = false;
+    state.closeReason = '';
+    persistSessionState();
+    renderContent();
+    processOutbox();
+    api('typing', { method: 'POST', body: { conversation_id: state.session.conversation_id, typing: false } }).catch(function () {});
+  }
+
+  function processOutbox() {
+    if (state.sendingQueue || !state.outbox.length || !state.session) return;
+    state.sendingQueue = true;
+    var item = state.outbox[0];
+    api('messages', { method: 'POST', body: { conversation_id: state.session.conversation_id, message: item.text, url: item.url } }).then(function (payload) {
+      var real = payload && payload.message ? payload.message : { id: payload.message_id, sender_type: 'visitor', body: item.text, message_type: 'text', is_private: 0, created_at: payload.created_at };
+      var index = state.messages.findIndex(function (m) { return m.id === item.tempId; });
+      var realId = Number(real.id || 0);
+      var existingIndex = realId ? state.messages.findIndex(function (m) { return Number(m.id || 0) === realId; }) : -1;
+      if (index >= 0 && existingIndex >= 0 && existingIndex !== index) state.messages.splice(index, 1);
+      else if (index >= 0) state.messages[index] = real;
+      else if (existingIndex < 0) state.messages.push(real);
+      if (realId) {
+        state.seenMessageIds[realId] = true;
+        state.lastId = Math.max(state.lastId, realId);
       }
-      autoGrow(textarea);
-      state.status = state.availability === 'online' ? 'open' : 'pending';
-      state.csatEligible = false;
-      state.closeReason = '';
-      if (payload && payload.message) mergeMessages([payload.message], false);
-      else if (payload && payload.message_id) mergeMessages([{ id: payload.message_id, sender_type: 'visitor', body: text, message_type: 'text', is_private: 0, created_at: payload.created_at }], false);
+      state.outbox.shift();
       renderContent();
-      api('typing', { method: 'POST', body: { conversation_id: state.session.conversation_id, typing: false } }).catch(function () {});
-      return Promise.all([loadMessages(), loadState()]);
+      syncNow();
     }).catch(function (err) {
-      state.draft = textarea.value;
-      window.alert(err.message || cfg.i18n.error);
+      var failed = state.messages.find(function (m) { return m.id === item.tempId; });
+      if (failed) { failed._pending = false; failed._failed = true; }
+      state.outbox.shift();
+      renderContent();
+      window.setTimeout(function () { window.alert(err.message || cfg.i18n.error); }, 0);
     }).finally(function () {
-      state.busy = false;
-      if (send) send.disabled = false;
+      state.sendingQueue = false;
+      processOutbox();
       var liveTextarea = root.querySelector('.n8lc-compose textarea');
       if (liveTextarea) liveTextarea.focus({ preventScroll: true });
     });
@@ -508,7 +553,10 @@
       state.csatRating = rating;
       state.csatComment = comment ? comment.value : state.csatComment;
       state.csatThanks = true;
+      state.feedbackPending = false;
+      persistSessionState();
       renderContent();
+      finishEndedSession(1400);
     }).catch(function (err) {
       if (status) status.textContent = err.message;
       if (submit) submit.disabled = false;
@@ -522,7 +570,10 @@
       state.status = 'closed';
       state.closeReason = payload && payload.close_reason ? payload.close_reason : 'visitor';
       state.csatEligible = !!(payload && payload.can_rate);
-      shell();
+      state.feedbackPending = state.csatEligible;
+      persistSessionState();
+      if (state.feedbackPending) shell();
+      else finishEndedSession(250);
     }).catch(function (err) { window.alert(err.message || cfg.i18n.error); });
   }
 
@@ -557,8 +608,15 @@
       state.agentTyping = payload.agent_typing || null;
       state.availability = payload.availability || state.availability;
       state.csatRating = payload.csat_rating == null ? state.csatRating : payload.csat_rating;
-      state.csatEligible = !!payload.csat_eligible;
       state.closeReason = payload.closed_reason || '';
+      if (state.closeReason === 'visitor' && state.status === 'closed') {
+        state.csatEligible = state.csatEligible || !!payload.csat_eligible;
+        state.feedbackPending = state.feedbackPending || state.csatEligible;
+      } else {
+        state.csatEligible = !!payload.csat_eligible;
+        if (state.status !== 'closed') state.feedbackPending = false;
+      }
+      persistSessionState();
       state.sessionStartedAt = payload.session_started_at || state.sessionStartedAt;
       state.sessionExpiresAt = payload.session_expires_at || state.sessionExpiresAt;
       state.idleTimeoutMinutes = Number(payload.idle_timeout_minutes || state.idleTimeoutMinutes || 15);
@@ -583,23 +641,69 @@
     api('heartbeat', { method: 'POST', body: { conversation_id: state.session.conversation_id, url: window.location.href } }).catch(function () {});
   }
 
+  function pollDelay() {
+    var configured = Number(cfg.pollInterval || (state.session && state.session.poll_interval) || 1500);
+    var active = Math.max(800, Math.min(1200, configured));
+    if (document.hidden) return 4500;
+    return state.open ? active : Math.max(2500, active * 2);
+  }
+
+  function schedulePoll(delay) {
+    if (state.polling) window.clearTimeout(state.polling);
+    if (!state.session) return;
+    state.polling = window.setTimeout(function tick() {
+      Promise.all([loadMessages(), loadState()]).finally(function () { schedulePoll(pollDelay()); });
+    }, typeof delay === 'number' ? delay : pollDelay());
+  }
+
+  function syncNow() {
+    if (!state.session) return Promise.resolve();
+    if (state.polling) window.clearTimeout(state.polling);
+    state.polling = null;
+    return Promise.all([loadMessages(), loadState()]).finally(function () { schedulePoll(pollDelay()); });
+  }
+
   function startPolling() {
     stopPolling();
-    var base = Math.max(1500, Number(cfg.pollInterval || (state.session && state.session.poll_interval) || 3000));
-    var interval = state.open ? base : Math.max(6000, base * 2);
-    state.polling = window.setInterval(function () { loadMessages(); loadState(); }, interval);
-    state.heartbeat = window.setInterval(heartbeat, 30000);
+    heartbeat();
+    schedulePoll(0);
+    state.heartbeat = window.setInterval(heartbeat, 20000);
     state.sessionClock = window.setInterval(updateSessionClock, 1000);
     updateSessionClock();
   }
 
   function stopPolling() {
-    if (state.polling) window.clearInterval(state.polling);
+    if (state.polling) window.clearTimeout(state.polling);
     if (state.heartbeat) window.clearInterval(state.heartbeat);
     if (state.sessionClock) window.clearInterval(state.sessionClock);
     state.polling = null;
     state.heartbeat = null;
     state.sessionClock = null;
+  }
+
+  function finishEndedSession(delay, startFresh) {
+    if (state.feedbackFinalizeTimer) window.clearTimeout(state.feedbackFinalizeTimer);
+    state.feedbackFinalizeTimer = window.setTimeout(function () {
+      stopPolling();
+      try { localStorage.removeItem(storageKey); } catch (e) {}
+      state.session = null;
+      state.messages = [];
+      state.lastId = 0;
+      state.seenMessageIds = {};
+      state.outbox = [];
+      state.sendingQueue = false;
+      state.status = 'open';
+      state.closeReason = '';
+      state.feedbackPending = false;
+      state.csatEligible = false;
+      state.csatSelection = 0;
+      state.csatComment = '';
+      state.csatThanks = false;
+      state.draft = '';
+      state.open = !!startFresh;
+      shell();
+      if (!startFresh) scheduleGreeting();
+    }, Math.max(0, Number(delay || 0)));
   }
 
   function resetSession() {
@@ -620,6 +724,11 @@
     state.closeReason = '';
     state.seenMessageIds = {};
     state.messagesLoading = null;
+    state.outbox = [];
+    state.sendingQueue = false;
+    state.feedbackPending = false;
+    if (state.feedbackFinalizeTimer) window.clearTimeout(state.feedbackFinalizeTimer);
+    state.feedbackFinalizeTimer = null;
     stopPolling();
     shell();
   }
@@ -675,6 +784,9 @@
       setTimeout(function () { ctx.close(); }, 500);
     } catch (e) {}
   }
+
+  window.addEventListener('focus', function () { if (state.session) syncNow(); });
+  document.addEventListener('visibilitychange', function () { if (!document.hidden && state.session) syncNow(); });
 
   shell();
   scheduleGreeting();

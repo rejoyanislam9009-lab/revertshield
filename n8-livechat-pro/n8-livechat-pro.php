@@ -3,7 +3,7 @@
  * Plugin Name: N8 LiveChat Pro
  * Plugin URI:  https://github.com/rejoyanislam9009-lab/revertshield
  * Description: Advanced live chat and support inbox for WordPress with agents, departments, typing indicators, attachments, tags, SLA automation, CSAT, analytics, notifications, and signed webhooks.
- * Version:     0.5.1
+ * Version:     0.5.2
  * Author:      N8
  * License:     GPL-2.0-or-later
  * Text Domain: n8-livechat-pro
@@ -13,7 +13,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'N8LC_VERSION', '0.5.1' );
+define( 'N8LC_VERSION', '0.5.2' );
 define( 'N8LC_FILE', __FILE__ );
 define( 'N8LC_DIR', plugin_dir_path( __FILE__ ) );
 define( 'N8LC_URL', plugin_dir_url( __FILE__ ) );

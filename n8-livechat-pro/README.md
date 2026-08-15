@@ -145,11 +145,13 @@ v0.4 is additive by design:
 GPL-2.0-or-later.
 
 
-### v0.5.1 conversation reliability hotfix
-- Actually loads the v0.4/v0.5 experience stylesheet after the base widget CSS.
-- Adds theme-resistant mobile composer/header/CSAT controls for WooCommerce themes such as WoodMart.
-- Deduplicates overlapping message polls and preserves visitor/admin typing focus and draft selection.
-- Admin replies echo immediately and thread state reconciles using latest message ID.
-- CSAT is shown only after the visitor explicitly ends a two-way conversation; agent/idle closes never prompt for a rating.
-- Adds explicit conversation close reasons (visitor, agent, idle) through a dbDelta-safe schema migration.
-- Adds mobile master/detail behavior to the Team Inbox.
+### v0.5.2 delivery, inbox and close-flow reliability
+- Adds cache-busted/no-store visitor and admin sync requests so public REST polling is not served stale by browser/cache layers.
+- Reduces active visitor sync latency to roughly 0.8–1.2 seconds while avoiding overlapping poll loops.
+- Adds a sequential visitor outbox so rapid messages can be typed/sent without locking the composer; optimistic bubbles reconcile with server message IDs.
+- Keeps each admin conversation draft/private-note state isolated by conversation ID so switching between many customers cannot leak a draft into the wrong chat.
+- Adds immediate admin reply echo, faster selected-thread reconciliation, live-customer badges and last-message previews.
+- Makes visitor End deterministic: eligible CSAT stays visible until submitted or skipped, then the local closed session is cleared and the panel closes.
+- Keeps idle-close resumable while agent-closed chats offer a clean new-chat action.
+- Clarifies launcher positioning controls: side-edge and bottom-edge distances can be tuned in Platform → Widget Experience.
+- Keeps v0.5.1 theme isolation/responsive fixes and all prior chat history/schema compatibility.
