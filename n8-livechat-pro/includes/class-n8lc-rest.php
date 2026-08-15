@@ -730,15 +730,45 @@ final class N8LC_REST {
         $id         = absint( $request['id'] );
         $body       = N8LC_Security::sanitize_message( $request->get_param( 'message' ) );
         $is_private = rest_sanitize_boolean( $request->get_param( 'is_private' ) );
+        $agent_id   = get_current_user_id();
+        $client_key = sanitize_key( substr( (string) $request->get_param( 'client_key' ), 0, 64 ) );
+        if ( $client_key && ! preg_match( '/^[a-z0-9_-]{8,64}$/', $client_key ) ) {
+            $client_key = '';
+        }
         if ( '' === $body ) {
             return new WP_Error( 'n8lc_empty_message', __( 'Message cannot be empty.', 'n8-livechat-pro' ), array( 'status' => 400 ) );
         }
         if ( ! $this->conversation_exists( $id ) ) {
             return new WP_Error( 'n8lc_not_found', __( 'Conversation not found.', 'n8-livechat-pro' ), array( 'status' => 404 ) );
         }
-        $now      = current_time( 'mysql' );
-        $agent_id = get_current_user_id();
-        $wpdb->insert(
+
+        $dedupe_key = $client_key ? 'n8lc_asend_' . md5( $agent_id . '|' . $id . '|' . $client_key ) : '';
+        if ( $dedupe_key ) {
+            $existing_id = absint( get_transient( $dedupe_key ) );
+            if ( $existing_id ) {
+                $existing = $wpdb->get_row(
+                    $wpdb->prepare(
+                        'SELECT id,sender_type,sender_id,body,message_type,is_private,created_at FROM ' . N8LC_DB::table( 'messages' ) . ' WHERE id=%d AND conversation_id=%d',
+                        $existing_id,
+                        $id
+                    ),
+                    ARRAY_A
+                );
+                if ( $existing ) {
+                    return rest_ensure_response( array(
+                        'message_id' => absint( $existing['id'] ),
+                        'created_at' => $existing['created_at'],
+                        'status'     => ! empty( $existing['is_private'] ) ? null : 'open',
+                        'duplicate'  => true,
+                        'client_key' => $client_key,
+                        'message'    => $existing,
+                    ) );
+                }
+            }
+        }
+
+        $now = current_time( 'mysql' );
+        $inserted = $wpdb->insert(
             N8LC_DB::table( 'messages' ),
             array(
                 'conversation_id' => $id,
@@ -751,19 +781,27 @@ final class N8LC_REST {
             ),
             array( '%d', '%s', '%d', '%s', '%s', '%d', '%s' )
         );
+        if ( false === $inserted ) {
+            return new WP_Error( 'n8lc_reply_failed', __( 'The reply could not be saved. Please try again.', 'n8-livechat-pro' ), array( 'status' => 500 ) );
+        }
         $message_id = (int) $wpdb->insert_id;
+        if ( $dedupe_key ) {
+            set_transient( $dedupe_key, $message_id, 10 * MINUTE_IN_SECONDS );
+        }
         if ( $is_private ) {
             $wpdb->query( $wpdb->prepare( 'UPDATE ' . N8LC_DB::table( 'conversations' ) . ' SET agent_id=COALESCE(agent_id,%d),updated_at=%s WHERE id=%d', $agent_id, $now, $id ) );
         } else {
             $wpdb->query( $wpdb->prepare( "UPDATE " . N8LC_DB::table( 'conversations' ) . " SET agent_id=COALESCE(agent_id,%d),status='open',closed_at=NULL,closed_reason='',unread_visitor=unread_visitor+1,last_message_at=%s,updated_at=%s WHERE id=%d", $agent_id, $now, $now, $id ) );
         }
         delete_transient( 'n8lc_atyping_' . $id );
-        N8LC_DB::log_event( $is_private ? 'private_note' : 'agent_message', array( 'conversation_id' => $id, 'agent_id' => $agent_id ) );
+        N8LC_DB::log_event( $is_private ? 'private_note' : 'agent_message', array( 'conversation_id' => $id, 'agent_id' => $agent_id, 'payload' => $client_key ? array( 'client_key' => $client_key ) : array() ) );
         do_action( 'n8lc_message_created', $message_id, $id, $is_private ? 'note' : 'agent' );
         return rest_ensure_response( array(
             'message_id' => $message_id,
             'created_at' => $now,
             'status'     => $is_private ? null : 'open',
+            'duplicate'  => false,
+            'client_key' => $client_key,
             'message'    => array(
                 'id'           => $message_id,
                 'sender_type'  => $is_private ? 'note' : 'agent',

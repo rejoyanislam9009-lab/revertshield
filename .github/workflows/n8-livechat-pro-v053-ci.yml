@@ -1,0 +1,173 @@
+name: N8 LiveChat Pro v0.5.3 Premium Inbox Reliability
+
+on:
+  push:
+    branches:
+      - feature/n8-livechat-pro-v0.5.3
+    paths:
+      - dist/v053.publish
+
+permissions:
+  contents: write
+
+jobs:
+  validate-and-publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout v0.5.3 branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Reconstruct and verify exact hotfix
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat dist/v053.patch.b64.{00..03} > /tmp/v053.patch.gz.b64
+          base64 -d /tmp/v053.patch.gz.b64 > /tmp/v053.patch.gz
+          echo 'f93265be0edf3d434af43da20c97fc6d9d80b7f6308cf0dfb26ca6fafcd94575  /tmp/v053.patch.gz' | sha256sum -c -
+          gzip -dc /tmp/v053.patch.gz > /tmp/v053.patch
+          echo 'c142878679185c259ab282f7c90614e0e3a7dcf7db3d04cdde4faf7ae1ad1f9c  /tmp/v053.patch' | sha256sum -c -
+          grep -Fq 'Version:     0.5.2' n8-livechat-pro/n8-livechat-pro.php
+          git apply --check /tmp/v053.patch
+          git apply /tmp/v053.patch
+          grep -Fq 'Version:     0.5.3' n8-livechat-pro/n8-livechat-pro.php
+          grep -Fq "define( 'N8LC_VERSION', '0.5.3' );" n8-livechat-pro/n8-livechat-pro.php
+          grep -Fq 'Stable tag: 0.5.3' n8-livechat-pro/readme.txt
+
+      - name: Verify premium inbox and send reliability boundaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd n8-livechat-pro
+          grep -Fq 'function apiWithTimeout(path, options, timeoutMs)' assets/js/admin.js
+          grep -Fq 'client_key: record.clientKey' assets/js/admin.js
+          grep -Fq 'Delivery not confirmed' assets/js/admin.js
+          grep -Fq 'function dispatchAdminSend(record, isRetry)' assets/js/admin.js
+          grep -Fq 'pendingSends: {}' assets/js/admin.js
+          grep -Fq 'n8lc-inbox-premium' assets/js/admin.js
+          grep -Fq 'n8lc-premium-compose' assets/js/admin.js
+          grep -Fq 'n8lc-reply-card' assets/css/admin.css
+          grep -Fq 'v0.5.3 premium inbox + resilient composer' assets/css/admin.css
+          grep -Fq "'currentUserName' => wp_get_current_user()->display_name" includes/class-n8lc-admin.php
+          grep -Fq "'n8lc_asend_' . md5" includes/class-n8lc-rest.php
+          grep -Fq 'set_transient( $dedupe_key, $message_id, 10 * MINUTE_IN_SECONDS )' includes/class-n8lc-rest.php
+          grep -Fq "'duplicate'  => true" includes/class-n8lc-rest.php
+          send_block=$(sed -n '/function sendReply()/,/function uploadAgentFile/p' assets/js/admin.js)
+          if grep -Fq 'button.disabled = true' <<<"$send_block"; then echo 'composer still globally locks while sending' >&2; exit 1; fi
+          if grep -RniE '\?->|\bmatch\s*\(|\bfn\s*\(|str_contains\(|str_starts_with\(|str_ends_with\(' --include='*.php' .; then
+            echo 'PHP 8-only construct found' >&2
+            exit 1
+          fi
+
+      - name: Setup PHP 7.4
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '7.4'
+          coverage: none
+
+      - name: PHP 7.4 syntax gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          find n8-livechat-pro -name '*.php' -type f -print0 | sort -z | xargs -0 -n1 php -l
+
+      - name: PHP 7.4 idempotent reply runtime test
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > /tmp/test-admin-reply.php <<'PHP'
+          <?php
+          define('ABSPATH', __DIR__ . '/');
+          define('MINUTE_IN_SECONDS', 60);
+          define('ARRAY_A','ARRAY_A');
+          class WP_Error { public function __construct($c,$m,$d=array()){ throw new Exception($c.':'.$m); } }
+          class WP_REST_Request implements ArrayAccess {
+              private $route; private $p;
+              public function __construct($id,$p){$this->route=array('id'=>$id);$this->p=$p;}
+              public function get_param($k){return isset($this->p[$k])?$this->p[$k]:null;}
+              public function offsetExists($o){return isset($this->route[$o]);}
+              public function offsetGet($o){return $this->route[$o];}
+              public function offsetSet($o,$v){$this->route[$o]=$v;}
+              public function offsetUnset($o){unset($this->route[$o]);}
+          }
+          function __($s,$d=null){return $s;} function absint($v){return abs((int)$v);} function sanitize_key($s){return preg_replace('/[^a-z0-9_\-]/','',strtolower((string)$s));}
+          function rest_sanitize_boolean($v){return filter_var($v,FILTER_VALIDATE_BOOLEAN);} function current_time($t){return '2026-08-15 22:00:00';}
+          function get_current_user_id(){return 7;} $GLOBALS['transients']=array();
+          function get_transient($k){return isset($GLOBALS['transients'][$k])?$GLOBALS['transients'][$k]:false;} function set_transient($k,$v,$ttl){$GLOBALS['transients'][$k]=$v;return true;} function delete_transient($k){unset($GLOBALS['transients'][$k]);}
+          function rest_ensure_response($v){return $v;} function do_action(){ }
+          class N8LC_Security { public static function sanitize_message($s){return trim((string)$s);} }
+          class N8LC_DB { public static function table($n){return $n;} public static function log_event($a,$b=array()){} }
+          class MockDB {
+            public $insert_id=0,$rows=array(),$inserts=0;
+            public function insert($table,$data,$formats){$this->insert_id++;$this->inserts++;$data['id']=$this->insert_id;$this->rows[$this->insert_id]=$data;return 1;}
+            public function prepare($q){$args=func_get_args();array_shift($args);return array($q,$args);}
+            public function get_var($prepared){$q=$prepared[0]; if(strpos($q,'SELECT id FROM conversations')!==false) return 1; return null;}
+            public function get_row($prepared,$fmt=null){$args=$prepared[1];$id=(int)$args[0];$cid=(int)$args[1]; if(isset($this->rows[$id]) && (int)$this->rows[$id]['conversation_id']===$cid) return $this->rows[$id]; return null;}
+            public function query($q){return 1;}
+          }
+          $GLOBALS['wpdb']=new MockDB();
+          require getcwd() . '/n8-livechat-pro/includes/class-n8lc-rest.php';
+          $rest=N8LC_REST::instance();
+          $a=$rest->admin_reply(new WP_REST_Request(3,array('message'=>'hello premium','is_private'=>false,'client_key'=>'adm_test_12345')));
+          $b=$rest->admin_reply(new WP_REST_Request(3,array('message'=>'hello premium','is_private'=>false,'client_key'=>'adm_test_12345')));
+          if($GLOBALS['wpdb']->inserts!==1 || (int)$a['message_id']!==(int)$b['message_id'] || empty($b['duplicate'])) exit(1);
+          echo "ADMIN_REPLY_IDEMPOTENCY_PASS\n";
+          PHP
+          php /tmp/test-admin-reply.php
+
+      - name: Setup PHP 8.4
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          coverage: none
+
+      - name: PHP 8.4 syntax gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          find n8-livechat-pro -name '*.php' -type f -print0 | sort -z | xargs -0 -n1 php -l
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: JavaScript syntax gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          while IFS= read -r -d '' file; do node --check "$file"; done < <(find n8-livechat-pro/assets/js -name '*.js' -type f -print0 | sort -z)
+
+      - name: Build and verify installable ZIP
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f dist/n8-livechat-pro-0.5.3.zip dist/n8-livechat-pro-0.5.3.sha256
+          zip -qr dist/n8-livechat-pro-0.5.3.zip n8-livechat-pro -x '*/.DS_Store'
+          unzip -t dist/n8-livechat-pro-0.5.3.zip
+          sha256sum dist/n8-livechat-pro-0.5.3.zip > dist/n8-livechat-pro-0.5.3.sha256
+          cat dist/n8-livechat-pro-0.5.3.sha256
+
+      - name: Upload verified release artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: n8-livechat-pro-0.5.3
+          path: |
+            dist/n8-livechat-pro-0.5.3.zip
+            dist/n8-livechat-pro-0.5.3.sha256
+          if-no-files-found: error
+
+      - name: Publish verified source and package
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add n8-livechat-pro dist/n8-livechat-pro-0.5.3.zip dist/n8-livechat-pro-0.5.3.sha256
+          if git diff --cached --quiet; then
+            echo 'Nothing to publish.'
+            exit 0
+          fi
+          git commit -m 'Publish N8 LiveChat Pro 0.5.3 premium inbox reliability update'
+          git push

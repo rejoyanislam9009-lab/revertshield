@@ -38,6 +38,29 @@
     });
   }
 
+  function apiWithTimeout(path, options, timeoutMs) {
+    timeoutMs = Math.max(1500, Number(timeoutMs || 10000));
+    var timeoutId;
+    var timeout = new Promise(function (_, reject) {
+      timeoutId = window.setTimeout(function () {
+        var err = new Error('Delivery confirmation timed out.');
+        err.code = 'n8lc_timeout';
+        reject(err);
+      }, timeoutMs);
+    });
+    return Promise.race([api(path, options), timeout]).then(function (value) {
+      window.clearTimeout(timeoutId);
+      return value;
+    }, function (err) {
+      window.clearTimeout(timeoutId);
+      throw err;
+    });
+  }
+
+  function makeClientKey() {
+    return 'adm_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 10);
+  }
+
   function fmtDate(v) {
     if (!v) return '—';
     var d = new Date(String(v).replace(' ', 'T'));
@@ -137,13 +160,13 @@
   }
 
   var inbox = {
-    conversations: [], selected: null, messages: [], filter: '', search: '', canned: [], departments: [], tags: [], typingTimer: null, refreshTimer: null, stateTimer: null, threadRequestSeq: 0, lastThreadMessageId: 0, drafts: {}, privateDrafts: {}
+    conversations: [], selected: null, messages: [], filter: '', search: '', canned: [], departments: [], tags: [], typingTimer: null, refreshTimer: null, stateTimer: null, threadRequestSeq: 0, lastThreadMessageId: 0, drafts: {}, privateDrafts: {}, pendingSends: {}, lastSendNotice: {}
   };
 
   function renderInbox() {
-    app.innerHTML = '<div class="n8lc-inbox">' +
-      '<aside class="n8lc-inbox-list"><div class="n8lc-inbox-tools"><input id="n8lc-search" type="search" placeholder="Search visitor or subject"><select id="n8lc-status"><option value="">All</option><option value="open">Open</option><option value="pending">Pending</option><option value="closed">Closed</option></select><select id="n8lc-priority"><option value="">Any priority</option><option value="urgent">Urgent</option><option value="high">High</option><option value="normal">Normal</option><option value="low">Low</option></select></div><div id="n8lc-conversation-list" class="n8lc-conversation-list"><div class="n8lc-loading">Loading…</div></div></aside>' +
-      '<main id="n8lc-thread" class="n8lc-thread"><div class="n8lc-thread-empty"><span class="dashicons dashicons-format-chat"></span><h2>Select a conversation</h2><p>Read messages, send files, assign agents, use tags, track SLA, add notes and reply.</p></div></main>' +
+    app.innerHTML = '<div class="n8lc-inbox n8lc-inbox-premium">' +
+      '<aside class="n8lc-inbox-list"><div class="n8lc-inbox-brand"><div><span class="n8lc-kicker">TEAM INBOX</span><strong>Conversations</strong></div><span class="n8lc-sync-pill"><i></i> Live sync</span></div><div class="n8lc-inbox-tools"><div class="n8lc-search-wrap"><span class="dashicons dashicons-search"></span><input id="n8lc-search" type="search" placeholder="Search conversations"></div><select id="n8lc-status"><option value="">All status</option><option value="open">Open</option><option value="pending">Pending</option><option value="closed">Closed</option></select><select id="n8lc-priority"><option value="">Any priority</option><option value="urgent">Urgent</option><option value="high">High</option><option value="normal">Normal</option><option value="low">Low</option></select></div><div id="n8lc-conversation-list" class="n8lc-conversation-list"><div class="n8lc-loading">Loading…</div></div></aside>' +
+      '<main id="n8lc-thread" class="n8lc-thread"><div class="n8lc-thread-empty"><span class="n8lc-empty-icon dashicons dashicons-format-chat"></span><span class="n8lc-kicker">READY TO REPLY</span><h2>Select a conversation</h2><p>Choose a customer from the left to open the live conversation workspace.</p></div></main>' +
     '</div>';
 
     document.getElementById('n8lc-status').addEventListener('change', function (e) { inbox.filter = e.target.value; loadConversations(); });
@@ -246,8 +269,9 @@
     if (!silent) thread.innerHTML = '<div class="n8lc-loading">Loading conversation…</div>';
     Promise.all([api('admin/conversations/' + id + '/messages'), api('admin/conversations/' + id + '/state')]).then(function (r) {
       if (requestSeq !== inbox.threadRequestSeq || Number(id) !== Number(inbox.selected)) return;
-      inbox.messages = r[0].messages || [];
-      inbox.lastThreadMessageId = inbox.messages.reduce(function (max, m) { return Math.max(max, Number(m.id || 0)); }, 0);
+      var serverMessages = r[0].messages || [];
+      inbox.messages = serverMessages.concat(pendingMessagesForConversation(id, serverMessages));
+      inbox.lastThreadMessageId = serverMessages.reduce(function (max, m) { return Math.max(max, Number(m.id || 0)); }, 0);
       drawThread(r[1]);
       var restored = document.getElementById('n8lc-reply-text');
       if (restored) {
@@ -300,9 +324,26 @@
   function adminMessageHtml(m, c) {
     c = c || selectedConversation() || {};
     var type = Number(m.is_private) === 1 ? 'note' : m.sender_type;
-    var sender = type === 'visitor' ? (c.visitor_name || 'Visitor') : (type === 'note' ? 'Private note' : (type === 'system' ? 'System' : 'Agent'));
-    var delivery = m._pending ? '<small class="n8lc-admin-delivery">Sending…</small>' : (m._failed ? '<small class="n8lc-admin-delivery is-error">Failed</small>' : '');
-    return '<div class="n8lc-admin-msg n8lc-admin-msg-' + esc(type) + (m._pending ? ' is-pending' : '') + '" data-message-id="' + Number(m.id || 0) + '"><div><span class="n8lc-sender">' + esc(sender) + '</span><div class="n8lc-admin-bubble">' + attachmentHtml(m) + '</div><time>' + esc(fmtDate(m.created_at)) + '</time>' + delivery + '</div></div>';
+    var sender = type === 'visitor' ? (c.visitor_name || 'Visitor') : (type === 'note' ? 'Private note' : (type === 'system' ? 'System' : (cfg.currentUserName || 'Agent')));
+    var delivery = '';
+    if (m._pending) {
+      delivery = '<small class="n8lc-admin-delivery"><i></i> Sending</small>';
+    } else if (m._failed) {
+      delivery = '<small class="n8lc-admin-delivery is-error">Delivery not confirmed <button type="button" class="n8lc-retry-send" data-client-key="' + esc(m._clientKey || '') + '">Retry</button></small>';
+    }
+    return '<div class="n8lc-admin-msg n8lc-admin-msg-' + esc(type) + (m._pending ? ' is-pending' : '') + (m._failed ? ' is-failed' : '') + '" data-message-id="' + Number(m.id || 0) + '"><div><span class="n8lc-sender">' + esc(sender) + '</span><div class="n8lc-admin-bubble">' + attachmentHtml(m) + '</div><div class="n8lc-msg-meta"><time>' + esc(fmtDate(m.created_at)) + '</time>' + delivery + '</div></div></div>';
+  }
+
+  function bindRetryButtons(scope) {
+    scope = scope || document;
+    Array.prototype.forEach.call(scope.querySelectorAll('.n8lc-retry-send'), function (btn) {
+      if (btn.dataset.bound) return;
+      btn.dataset.bound = '1';
+      btn.addEventListener('click', function () {
+        var record = inbox.pendingSends[btn.dataset.clientKey];
+        if (record) dispatchAdminSend(record, true);
+      });
+    });
   }
 
   function appendAdminMessage(m) {
@@ -310,12 +351,33 @@
     var id = Number(m.id || 0);
     if (id && inbox.messages.some(function (x) { return Number(x.id) === id; })) return;
     inbox.messages.push(m);
-    if (id) inbox.lastThreadMessageId = Math.max(inbox.lastThreadMessageId, id);
+    if (id > 0) inbox.lastThreadMessageId = Math.max(inbox.lastThreadMessageId, id);
     var body = document.getElementById('n8lc-thread-body');
     if (body) {
       body.insertAdjacentHTML('beforeend', adminMessageHtml(m));
+      bindRetryButtons(body);
       body.scrollTop = body.scrollHeight;
     }
+  }
+
+  function pendingMessagesForConversation(id, serverMessages) {
+    var out = [];
+    Object.keys(inbox.pendingSends).forEach(function (key) {
+      var record = inbox.pendingSends[key];
+      if (!record || Number(record.conversationId) !== Number(id)) return;
+      var matched = (serverMessages || []).some(function (m) {
+        if (Number(m.is_private || 0) !== (record.isPrivate ? 1 : 0)) return false;
+        if (String(m.body || '') !== String(record.body || '')) return false;
+        var mt = new Date(String(m.created_at || '').replace(' ', 'T')).getTime();
+        return !isNaN(mt) && Math.abs(mt - record.startedAt) < 120000;
+      });
+      if (matched) {
+        delete inbox.pendingSends[key];
+        return;
+      }
+      out.push(record.message);
+    });
+    return out;
   }
 
   function drawThread(stateData) {
@@ -342,11 +404,12 @@
     var visitorLive = Number(c.visitor_online) ? '<span class="n8lc-thread-live">● Visitor online</span>' : '<span class="n8lc-thread-offline">Visitor away</span>';
     var el = document.getElementById('n8lc-thread');
     el.dataset.conversationId = String(c.id);
-    el.innerHTML = '<div class="n8lc-thread-head"><button type="button" class="button n8lc-mobile-back" aria-label="Back to conversations">← Conversations</button><div><h2>' + esc(c.visitor_name || 'Anonymous') + ' <small class="n8lc-conversation-id">#' + Number(c.id) + '</small></h2><p>' + esc(c.visitor_email || '') + (c.visitor_phone ? ' · ' + esc(c.visitor_phone) : '') + '</p><div class="n8lc-thread-meta">' + visitorLive + ' ' + sla + ' ' + tagPills(c.tags) + '</div></div><div class="n8lc-thread-actions"><select id="n8lc-status-edit"><option value="open">Open</option><option value="pending">Pending</option><option value="closed">Closed</option></select><select id="n8lc-priority-edit"><option value="low">Low</option><option value="normal">Normal</option><option value="high">High</option><option value="urgent">Urgent</option></select><select id="n8lc-agent-edit">' + agentOptions + '</select><select id="n8lc-dept-edit">' + deptOptions + '</select></div></div>' +
+    var initialsText = String(c.visitor_name || 'Visitor').trim().split(/\s+/).slice(0,2).map(function (part) { return part.charAt(0).toUpperCase(); }).join('') || 'V';
+    el.innerHTML = '<div class="n8lc-thread-head"><button type="button" class="button n8lc-mobile-back" aria-label="Back to conversations">← Conversations</button><div class="n8lc-customer-head"><span class="n8lc-customer-avatar">' + esc(initialsText) + '</span><div><div class="n8lc-customer-title"><h2>' + esc(c.visitor_name || 'Anonymous') + '</h2><small class="n8lc-conversation-id">#' + Number(c.id) + '</small></div><p>' + esc(c.visitor_email || '') + (c.visitor_phone ? ' · ' + esc(c.visitor_phone) : '') + '</p><div class="n8lc-thread-meta">' + visitorLive + ' ' + sla + ' ' + tagPills(c.tags) + '</div></div></div><div class="n8lc-thread-actions"><label><span>Status</span><select id="n8lc-status-edit"><option value="open">Open</option><option value="pending">Pending</option><option value="closed">Closed</option></select></label><label><span>Priority</span><select id="n8lc-priority-edit"><option value="low">Low</option><option value="normal">Normal</option><option value="high">High</option><option value="urgent">Urgent</option></select></label><label><span>Agent</span><select id="n8lc-agent-edit">' + agentOptions + '</select></label><label><span>Department</span><select id="n8lc-dept-edit">' + deptOptions + '</select></label></div></div>' +
       '<div class="n8lc-thread-body" id="n8lc-thread-body">' + messages + '</div>' +
       '<div id="n8lc-visitor-typing" class="n8lc-typing-line">' + visitorTypingHtml(!!(stateData && stateData.visitor_typing)) + '</div>' +
-      '<details class="n8lc-context"><summary>Conversation context, tags & custom fields</summary><div class="n8lc-context-grid"><div><strong>Tags</strong><div id="n8lc-thread-tags" class="n8lc-tag-picker">' + tagChecks + '</div><button type="button" class="button" id="n8lc-save-tags">Save tags</button></div><div><strong>Custom fields</strong><textarea id="n8lc-custom-data" rows="5" placeholder="order_id=12345\nplan=pro">' + esc(customDataLines(c.custom_data)) + '</textarea><button type="button" class="button" id="n8lc-save-custom">Save fields</button></div></div></details>' +
-      '<div class="n8lc-thread-compose"><div class="n8lc-compose-top"><select id="n8lc-canned-select">' + cannedOptions + '</select><label><input type="checkbox" id="n8lc-private-note"> Private note</label><button type="button" class="button" id="n8lc-send-transcript">Email transcript</button></div><textarea id="n8lc-reply-text" rows="3" maxlength="5000" placeholder="Write a reply…"></textarea><div class="n8lc-compose-hint">Enter to send · Shift+Enter for a new line</div><div class="n8lc-compose-bottom"><div><input type="file" id="n8lc-agent-file" class="n8lc-hidden-file"><button type="button" class="button" id="n8lc-attach-file">📎 Attach</button><span id="n8lc-reply-status"></span></div><button class="button button-primary" id="n8lc-send-reply">Send reply</button></div></div>';
+      '<details class="n8lc-context"><summary><span>Conversation details</span><small>Tags, customer context & custom fields</small></summary><div class="n8lc-context-grid"><div><strong>Tags</strong><div id="n8lc-thread-tags" class="n8lc-tag-picker">' + tagChecks + '</div><button type="button" class="button" id="n8lc-save-tags">Save tags</button></div><div><strong>Custom fields</strong><textarea id="n8lc-custom-data" rows="5" placeholder="order_id=12345\nplan=pro">' + esc(customDataLines(c.custom_data)) + '</textarea><button type="button" class="button" id="n8lc-save-custom">Save fields</button></div></div></details>' +
+      '<div class="n8lc-thread-compose n8lc-premium-compose"><div class="n8lc-compose-top"><div class="n8lc-compose-field"><span>Quick reply</span><select id="n8lc-canned-select">' + cannedOptions + '</select></div><label class="n8lc-private-toggle"><input type="checkbox" id="n8lc-private-note"><span>Private note</span></label><button type="button" class="button n8lc-transcript-btn" id="n8lc-send-transcript">Email transcript</button></div><div class="n8lc-reply-card"><textarea id="n8lc-reply-text" rows="3" maxlength="5000" placeholder="Write a reply to ' + esc(c.visitor_name || 'this customer') + '…"></textarea><div class="n8lc-compose-bottom"><div class="n8lc-compose-actions"><input type="file" id="n8lc-agent-file" class="n8lc-hidden-file"><button type="button" class="button n8lc-attach-btn" id="n8lc-attach-file">📎 <span>Attach</span></button><span id="n8lc-reply-status" class="n8lc-reply-status">Ready</span></div><div class="n8lc-send-zone"><span class="n8lc-compose-hint">Enter to send · Shift+Enter for new line</span><button class="button button-primary n8lc-send-premium" id="n8lc-send-reply"><span>Send reply</span><b>↗</b></button></div></div></div></div>';
 
     var mobileBack = document.querySelector('.n8lc-mobile-back');
     if (mobileBack) mobileBack.addEventListener('click', function () { var inboxEl = document.querySelector('.n8lc-inbox'); if (inboxEl) inboxEl.classList.remove('is-thread-open'); });
@@ -370,6 +433,7 @@
     document.getElementById('n8lc-save-custom').addEventListener('click', saveCustomData);
     document.getElementById('n8lc-send-transcript').addEventListener('click', sendTranscript);
     var body = document.getElementById('n8lc-thread-body');
+    bindRetryButtons(body);
     body.scrollTop = body.scrollHeight;
   }
 
@@ -394,52 +458,112 @@
     }, 2500);
   }
 
+  function composerStatus(conversationId, text, mode) {
+    if (Number(inbox.selected) !== Number(conversationId)) return;
+    var status = document.getElementById('n8lc-reply-status');
+    if (!status) return;
+    status.textContent = text || 'Ready';
+    status.className = 'n8lc-reply-status' + (mode ? ' is-' + mode : '');
+  }
+
+  function replacePendingSend(record, message) {
+    inbox.messages = inbox.messages.filter(function (m) { return Number(m.id) !== Number(record.tempId); });
+    var pendingEl = document.querySelector('[data-message-id="' + record.tempId + '"]');
+    if (pendingEl) pendingEl.remove();
+    if (message) appendAdminMessage(message);
+  }
+
+  function markPendingSend(record, failed) {
+    var pending = inbox.messages.find(function (m) { return Number(m.id) === Number(record.tempId); });
+    if (pending) {
+      pending._pending = !failed;
+      pending._failed = !!failed;
+    }
+    var el = document.querySelector('[data-message-id="' + record.tempId + '"]');
+    if (el) {
+      el.outerHTML = adminMessageHtml(record.message);
+      var body = document.getElementById('n8lc-thread-body');
+      bindRetryButtons(body);
+    }
+  }
+
+  function dispatchAdminSend(record, isRetry) {
+    if (!record || record.inFlight) return;
+    record.inFlight = true;
+    record.message._pending = true;
+    record.message._failed = false;
+    markPendingSend(record, false);
+    composerStatus(record.conversationId, isRetry ? 'Retrying delivery…' : 'Sending…', 'sending');
+
+    apiWithTimeout('admin/conversations/' + record.conversationId + '/reply', {
+      method: 'POST',
+      body: { message: record.body, is_private: record.isPrivate, client_key: record.clientKey }
+    }, 9000).then(function (payload) {
+      record.inFlight = false;
+      replacePendingSend(record, payload && payload.message ? payload.message : null);
+      delete inbox.pendingSends[record.clientKey];
+      composerStatus(record.conversationId, payload && payload.duplicate ? 'Delivered ✓' : 'Sent ✓', 'sent');
+      if (!record.isPrivate) {
+        var c = inbox.conversations.find(function (x) { return Number(x.id) === Number(record.conversationId); });
+        if (c) c.status = 'open';
+        var statusEdit = document.getElementById('n8lc-status-edit');
+        if (statusEdit && Number(inbox.selected) === Number(record.conversationId)) statusEdit.value = 'open';
+      }
+      api('admin/conversations/' + record.conversationId + '/typing', { method: 'POST', body: { typing: false } }).catch(function () {});
+      loadConversations(true);
+      if (!payload || !payload.message) loadThread(record.conversationId, true);
+    }).catch(function (e) {
+      record.inFlight = false;
+      record.message._pending = false;
+      record.message._failed = true;
+      markPendingSend(record, true);
+      composerStatus(record.conversationId, e && e.code === 'n8lc_timeout' ? 'Delivery check timed out — tap Retry on the message' : (e.message || 'Send failed — retry'), 'error');
+      window.setTimeout(function () { if (Number(inbox.selected) === Number(record.conversationId)) loadThreadState(); }, 700);
+    });
+  }
+
   function sendReply() {
     var conversationId = Number(inbox.selected || 0);
     if (!conversationId) return;
     var text = document.getElementById('n8lc-reply-text');
-    var status = document.getElementById('n8lc-reply-status');
-    var button = document.getElementById('n8lc-send-reply');
     var privateBox = document.getElementById('n8lc-private-note');
     var isPrivate = !!(privateBox && privateBox.checked);
     var body = text ? text.value.trim() : '';
-    if (!body || (button && button.disabled)) return;
-    if (button) button.disabled = true;
-    if (status) status.textContent = 'Sending…';
-    var tempId = -Date.now();
-    appendAdminMessage({ id: tempId, sender_type: isPrivate ? 'note' : 'agent', sender_id: Number(cfg.userId || 0), body: body, message_type: isPrivate ? 'note' : 'text', is_private: isPrivate ? 1 : 0, created_at: new Date().toISOString(), _pending: true });
+    if (!body) return;
+
+    var clientKey = makeClientKey();
+    var tempId = -(Date.now() + Math.floor(Math.random() * 999));
+    var record = {
+      clientKey: clientKey,
+      tempId: tempId,
+      conversationId: conversationId,
+      body: body,
+      isPrivate: isPrivate,
+      startedAt: Date.now(),
+      inFlight: false,
+      message: {
+        id: tempId,
+        sender_type: isPrivate ? 'note' : 'agent',
+        sender_id: Number(cfg.currentUserId || 0),
+        body: body,
+        message_type: isPrivate ? 'note' : 'text',
+        is_private: isPrivate ? 1 : 0,
+        created_at: new Date().toISOString(),
+        _pending: true,
+        _failed: false,
+        _clientKey: clientKey
+      }
+    };
+    inbox.pendingSends[clientKey] = record;
+    appendAdminMessage(record.message);
     if (text) text.value = '';
     inbox.drafts[conversationId] = '';
-    api('admin/conversations/' + conversationId + '/reply', {
-      method: 'POST', body: { message: body, is_private: isPrivate }
-    }).then(function (payload) {
-      inbox.messages = inbox.messages.filter(function (m) { return Number(m.id) !== tempId; });
-      var pendingEl = document.querySelector('[data-message-id="' + tempId + '"]');
-      if (pendingEl) pendingEl.remove();
-      if (payload && payload.message) appendAdminMessage(payload.message);
-      if (status && Number(inbox.selected) === conversationId) status.textContent = 'Sent ✓';
-      if (!isPrivate) {
-        var c = inbox.conversations.find(function (x) { return Number(x.id) === conversationId; });
-        if (c) c.status = 'open';
-        var statusEdit = document.getElementById('n8lc-status-edit');
-        if (statusEdit && Number(inbox.selected) === conversationId) statusEdit.value = 'open';
-      }
-      api('admin/conversations/' + conversationId + '/typing', { method: 'POST', body: { typing: false } }).catch(function () {});
-      loadConversations(true);
-      if (!payload || !payload.message) loadThread(conversationId, true);
-    }).catch(function (e) {
-      var pending = inbox.messages.find(function (m) { return Number(m.id) === tempId; });
-      if (pending) { pending._pending = false; pending._failed = true; }
-      if (Number(inbox.selected) === conversationId) {
-        if (status) status.textContent = e.message;
-        if (text && !text.value) { text.value = body; inbox.drafts[conversationId] = body; }
-        loadThread(conversationId, true);
-      }
-    }).finally(function () {
-      if (button && Number(inbox.selected) === conversationId) button.disabled = false;
+    composerStatus(conversationId, 'Sending…', 'sending');
+    dispatchAdminSend(record, false);
+    window.setTimeout(function () {
       var liveText = document.getElementById('n8lc-reply-text');
       if (liveText && Number(inbox.selected) === conversationId) liveText.focus({ preventScroll: true });
-    });
+    }, 30);
   }
 
   function uploadAgentFile(e) {

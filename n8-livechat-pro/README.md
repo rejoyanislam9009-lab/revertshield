@@ -145,7 +145,7 @@ v0.4 is additive by design:
 GPL-2.0-or-later.
 
 
-### v0.5.2 delivery, inbox and close-flow reliability
+### v0.5.3 delivery, inbox and close-flow reliability
 - Adds cache-busted/no-store visitor and admin sync requests so public REST polling is not served stale by browser/cache layers.
 - Reduces active visitor sync latency to roughly 0.8–1.2 seconds while avoiding overlapping poll loops.
 - Adds a sequential visitor outbox so rapid messages can be typed/sent without locking the composer; optimistic bubbles reconcile with server message IDs.
