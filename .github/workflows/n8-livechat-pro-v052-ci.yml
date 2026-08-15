@@ -1,0 +1,148 @@
+name: N8 LiveChat Pro v0.5.2 Delivery Reliability
+
+on:
+  push:
+    branches:
+      - feature/n8-livechat-pro-v0.5.2
+    paths:
+      - dist/v052.publish
+
+permissions:
+  contents: write
+
+jobs:
+  validate-and-publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout v0.5.2 branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Reconstruct and verify exact hotfix
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat dist/v052.patch.b64.first dist/v052.patch.b64.{00..20} > /tmp/v052.patch.gz.b64
+          base64 -d /tmp/v052.patch.gz.b64 > /tmp/v052.patch.gz
+          echo 'f487789865f59684983dfcf12ed682123ea1df10b01ba52a11fad9088ccfc232  /tmp/v052.patch.gz' | sha256sum -c -
+          gzip -dc /tmp/v052.patch.gz > /tmp/v052.patch
+          echo 'e1b0e0addaed59c5b913335ca62b6ac3f97316295e0fc9f91158a84e49c857d7  /tmp/v052.patch' | sha256sum -c -
+          grep -Fq 'Version:     0.5.1' n8-livechat-pro/n8-livechat-pro.php
+          git apply --check /tmp/v052.patch
+          git apply /tmp/v052.patch
+          grep -Fq 'Version:     0.5.2' n8-livechat-pro/n8-livechat-pro.php
+          grep -Fq "define( 'N8LC_VERSION', '0.5.2' );" n8-livechat-pro/n8-livechat-pro.php
+          grep -Fq 'Stable tag: 0.5.2' n8-livechat-pro/readme.txt
+
+      - name: Verify delivery and conversation regression boundaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd n8-livechat-pro
+          grep -Fq "options.cache = 'no-store';" assets/js/widget-v03.js
+          grep -Fq "'_n8lc=' + Date.now()" assets/js/widget-v03.js
+          grep -Fq 'Math.max(800, Math.min(1200, configured))' assets/js/widget-v03.js
+          grep -Fq "'sender_type'     => \$is_private ? 'note' : 'agent'" includes/class-n8lc-rest.php
+          grep -Fq 'AND is_private=0 AND id>%d' includes/class-n8lc-rest.php
+          grep -Fq 'unread_visitor=unread_visitor+1' includes/class-n8lc-rest.php
+          grep -Fq "Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0" includes/class-n8lc-rest.php
+          grep -Fq 'outbox: []' assets/js/widget-v03.js
+          grep -Fq 'function processOutbox()' assets/js/widget-v03.js
+          grep -Fq 'state.outbox.push' assets/js/widget-v03.js
+          grep -Fq 'existingIndex !== index' assets/js/widget-v03.js
+          send_block=$(sed -n '/function sendMessage(ev)/,/function processOutbox()/p' assets/js/widget-v03.js)
+          if grep -Fq 'state.busy ||' <<<"$send_block"; then echo 'sendMessage still globally locked' >&2; exit 1; fi
+          grep -Fq 'drafts: {}' assets/js/admin.js
+          grep -Fq 'privateDrafts: {}' assets/js/admin.js
+          grep -Fq 'function saveConversationDraft(id)' assets/js/admin.js
+          grep -Fq 'thread.dataset.conversationId' assets/js/admin.js
+          grep -Fq 'last_message_preview' includes/class-n8lc-rest.php
+          grep -Fq 'visitor_online' includes/class-n8lc-rest.php
+          grep -Fq 'window.setInterval(loadThreadState, 900)' assets/js/admin.js
+          grep -Fq 'Enter to send · Shift+Enter for a new line' assets/js/admin.js
+          grep -Fq 'feedbackPending: false' assets/js/widget-v03.js
+          grep -Fq 'Skip & close' assets/js/widget-v03.js
+          grep -Fq 'finishEndedSession(1400)' assets/js/widget-v03.js
+          grep -Fq 'state.feedbackPending = state.csatEligible' assets/js/widget-v03.js
+          grep -Fq "'closed_reason' => 'visitor'" includes/class-n8lc-rest.php
+          grep -Fq "if ( 'visitor' !== \$reason )" includes/class-n8lc-rest.php
+          grep -Fq 'n8lc-v3-offset-x' assets/js/customizer-v03.js
+          grep -Fq 'n8lc-v3-offset-y' assets/js/customizer-v03.js
+          grep -Fq 'Distance from side edge (px)' assets/js/platform-v04.js
+          grep -Fq "'widget_offset_x'            => array( 0, 240 )" includes/class-n8lc-platform.php
+          grep -Fq "'widget_offset_y'            => array( 0, 240 )" includes/class-n8lc-platform.php
+          grep -Fq 'v0.5.2 delivery, feedback lifecycle and compact mobile composer' assets/css/widget-v04.css
+          grep -Fq 'v0.5.2 multi-customer inbox + reply composer' assets/css/admin.css
+          if grep -RniE '\?->|\bmatch\s*\(|\bfn\s*\(|str_contains\(|str_starts_with\(|str_ends_with\(' --include='*.php' .; then
+            echo 'PHP 8-only construct found' >&2
+            exit 1
+          fi
+
+      - name: Setup PHP 7.4
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '7.4'
+          coverage: none
+
+      - name: PHP 7.4 syntax gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          find n8-livechat-pro -name '*.php' -type f -print0 | sort -z | xargs -0 -n1 php -l
+
+      - name: Setup PHP 8.4
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          coverage: none
+
+      - name: PHP 8.4 syntax gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          find n8-livechat-pro -name '*.php' -type f -print0 | sort -z | xargs -0 -n1 php -l
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: JavaScript syntax gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          while IFS= read -r -d '' file; do node --check "$file"; done < <(find n8-livechat-pro/assets/js -name '*.js' -type f -print0 | sort -z)
+
+      - name: Build and verify installable ZIP
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f dist/n8-livechat-pro-0.5.2.zip dist/n8-livechat-pro-0.5.2.sha256
+          zip -qr dist/n8-livechat-pro-0.5.2.zip n8-livechat-pro -x '*/.DS_Store'
+          unzip -t dist/n8-livechat-pro-0.5.2.zip
+          sha256sum dist/n8-livechat-pro-0.5.2.zip > dist/n8-livechat-pro-0.5.2.sha256
+          cat dist/n8-livechat-pro-0.5.2.sha256
+
+      - name: Upload verified release artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: n8-livechat-pro-0.5.2
+          path: |
+            dist/n8-livechat-pro-0.5.2.zip
+            dist/n8-livechat-pro-0.5.2.sha256
+          if-no-files-found: error
+
+      - name: Publish verified source and package
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add n8-livechat-pro dist/n8-livechat-pro-0.5.2.zip dist/n8-livechat-pro-0.5.2.sha256
+          if git diff --cached --quiet; then
+            echo 'Nothing to publish.'
+            exit 0
+          fi
+          git commit -m 'Publish N8 LiveChat Pro 0.5.2 delivery reliability update'
+          git push
