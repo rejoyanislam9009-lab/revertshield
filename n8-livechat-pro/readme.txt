@@ -3,7 +3,7 @@ Contributors: n8
 Requires at least: 6.5
 Tested up to: 7.0
 Requires PHP: 7.4
-Stable tag: 0.5.2
+Stable tag: 0.5.3
 License: GPLv2 or later
 
 Professional WordPress live chat and support operations with team roles, routing, attachments, typing, custom fields, knowledge, SLA, CSAT, privacy tools, analytics, audit/export and signed integrations.
@@ -38,7 +38,7 @@ The plugin enforces its upload allowlist and size controls but does not bundle a
 
 == Changelog ==
 
-= 0.5.2 =
+= 0.5.3 =
 * Added no-store/cache-busted chat sync and faster 0.8–1.2s active visitor polling.
 * Added a sequential optimistic visitor outbox so rapid messages do not lock the composer.
 * Isolated admin reply drafts per conversation to prevent cross-customer draft leakage when switching chats.
