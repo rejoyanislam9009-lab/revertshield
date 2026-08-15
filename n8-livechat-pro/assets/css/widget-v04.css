@@ -83,3 +83,21 @@
   #n8lc-widget-root .n8lc-closed-note{flex:0 0 auto!important;padding:8px 10px!important;font-size:11px!important}
   #n8lc-widget-root .n8lc-compose textarea{font-size:16px!important}
 }
+
+
+/* v0.5.2 delivery, feedback lifecycle and compact mobile composer */
+#n8lc-widget-root .n8lc-message-delivery{display:block;margin-top:3px;font-size:9px;color:#94a3b8}
+#n8lc-widget-root .n8lc-message-delivery.is-error{color:#dc2626}
+#n8lc-widget-root .n8lc-msg.is-pending{opacity:.78}
+#n8lc-widget-root .n8lc-rating-actions{display:grid;grid-template-columns:minmax(0,.75fr) minmax(0,1.25fr);gap:8px;margin-top:9px}
+#n8lc-widget-root .n8lc-rating-actions .n8lc-rating-submit{margin:0!important}
+#n8lc-widget-root .n8lc-rating-skip{border:1px solid #dbe3ee!important;background:#fff!important;color:#475569!important;border-radius:11px!important;padding:9px 10px!important;font-weight:700!important;cursor:pointer!important}
+#n8lc-widget-root .n8lc-ended-actions{padding:12px;background:#fff;border-top:1px solid #e2e8f0}
+#n8lc-widget-root .n8lc-ended-actions button{width:100%;min-height:42px!important;border:0!important;border-radius:12px!important;background:var(--n8lc-accent)!important;color:#fff!important;font-weight:750!important;cursor:pointer!important}
+@media(max-width:520px){
+  #n8lc-widget-root .n8lc-panel{top:auto!important}
+  #n8lc-widget-root .n8lc-rating-actions{grid-template-columns:1fr 1.15fr}
+  #n8lc-widget-root .n8lc-compose{padding-left:9px!important;padding-right:9px!important;gap:7px!important}
+  #n8lc-widget-root .n8lc-compose .n8lc-attach,#n8lc-widget-root .n8lc-compose .n8lc-send{width:42px!important;min-width:42px!important;height:42px!important;min-height:42px!important}
+  #n8lc-widget-root .n8lc-compose textarea{min-height:42px!important;padding:10px 11px!important}
+}

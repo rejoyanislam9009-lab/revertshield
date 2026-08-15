@@ -52,3 +52,17 @@
   .n8lc-thread-head>.n8lc-thread-actions{grid-template-columns:1fr}
   .n8lc-stats-grid,.n8lc-stats-grid-7{grid-template-columns:1fr}
 }
+
+
+/* v0.5.2 multi-customer inbox + reply composer */
+.n8lc-customer-online{display:inline-flex;align-items:center;margin-right:5px;color:#15803d;font-size:9px;font-weight:800}
+.n8lc-conversation-id{font-size:10px;color:#94a3b8;font-weight:600}
+.n8lc-admin-delivery{display:block;margin-top:3px;font-size:9px;color:#94a3b8}.n8lc-admin-delivery.is-error{color:#b91c1c}
+.n8lc-admin-msg.is-pending{opacity:.75}
+.n8lc-compose-hint{margin:4px 0 7px;color:#8c8f94;font-size:10px;text-align:right}
+.n8lc-thread-compose{position:sticky;bottom:0;z-index:3;box-shadow:0 -8px 24px rgba(15,23,42,.05)}
+.n8lc-thread-compose textarea{border-radius:10px;border:1px solid #cbd5e1;padding:10px 11px;box-shadow:none;resize:none;min-height:68px;max-height:150px}
+.n8lc-thread-compose textarea:focus{border-color:#2271b1;box-shadow:0 0 0 2px rgba(34,113,177,.12);outline:0}
+@media(min-width:1101px){.n8lc-inbox{grid-template-columns:minmax(280px,340px) minmax(0,1fr)}.n8lc-inbox-list{min-width:0}.n8lc-conversation{padding:12px}.n8lc-thread-body{padding:16px 22px}}
+@media(max-width:1100px){.n8lc-thread-compose{padding-bottom:max(12px,env(safe-area-inset-bottom))}.n8lc-compose-bottom{align-items:center}.n8lc-compose-hint{text-align:left}.n8lc-thread-head h2{display:flex;align-items:center;gap:6px}}
+.n8lc-thread-live{display:inline-flex;align-items:center;border-radius:999px;background:#dcfce7;color:#166534;padding:3px 8px;font-size:10px;font-weight:750}.n8lc-thread-offline{display:inline-flex;align-items:center;border-radius:999px;background:#f1f5f9;color:#64748b;padding:3px 8px;font-size:10px;font-weight:700}

@@ -3,7 +3,7 @@ Contributors: n8
 Requires at least: 6.5
 Tested up to: 7.0
 Requires PHP: 7.4
-Stable tag: 0.5.1
+Stable tag: 0.5.2
 License: GPLv2 or later
 
 Professional WordPress live chat and support operations with team roles, routing, attachments, typing, custom fields, knowledge, SLA, CSAT, privacy tools, analytics, audit/export and signed integrations.
@@ -37,6 +37,18 @@ No. Generic CRM/n8n/custom integration delivery only occurs after an administrat
 The plugin enforces its upload allowlist and size controls but does not bundle a malware engine. Security products can integrate through the `n8lc_validate_upload` hook.
 
 == Changelog ==
+
+= 0.5.2 =
+* Added no-store/cache-busted chat sync and faster 0.8–1.2s active visitor polling.
+* Added a sequential optimistic visitor outbox so rapid messages do not lock the composer.
+* Isolated admin reply drafts per conversation to prevent cross-customer draft leakage when switching chats.
+* Added last-message previews, live visitor badges, faster selected-thread reconciliation and immediate admin reply echo.
+* Made visitor End/CSAT persistent until feedback or skip, then cleanly closes and clears the local ended session.
+* Clarified side/bottom launcher offset controls and expanded their adjustment range.
+
+= 0.5.1 =
+* Loaded the experience stylesheet on the public widget and isolated chat controls from theme-global styles.
+* Added responsive Team Inbox behavior, message deduplication, focus preservation and CSAT lifecycle protections.
 
 = 0.5.0 =
 * Fixed visitor composer drafts being lost during background message refresh and hardened mobile text/caret visibility.

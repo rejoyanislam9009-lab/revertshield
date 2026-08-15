@@ -410,7 +410,8 @@ final class N8LC_REST {
             ARRAY_A
         );
         $wpdb->update( N8LC_DB::table( 'conversations' ), array( 'unread_visitor' => 0 ), array( 'id' => $conversation_id ), array( '%d' ), array( '%d' ) );
-        return rest_ensure_response( array( 'messages' => $rows ) );
+        $latest_id = $rows ? (int) end( $rows )['id'] : $after_id;
+        return $this->fresh_response( array( 'messages' => $rows, 'latest_message_id' => $latest_id ) );
     }
 
     public function visitor_send( WP_REST_Request $request ) {
@@ -534,7 +535,7 @@ final class N8LC_REST {
         $idle_minutes = max( 5, min( 1440, absint( isset( $platform['chat_idle_timeout_minutes'] ) ? $platform['chat_idle_timeout_minutes'] : 15 ) ) );
         $last_seen_date = $row && ! empty( $row['last_seen'] ) ? DateTimeImmutable::createFromFormat( 'Y-m-d H:i:s', $row['last_seen'], wp_timezone() ) : false;
         $last_seen_ts   = $last_seen_date ? $last_seen_date->getTimestamp() : time();
-        return rest_ensure_response( array(
+        return $this->fresh_response( array(
             'status'               => $row ? $row['status'] : 'open',
             'priority'             => $row ? $row['priority'] : 'normal',
             'csat_rating'          => $row && null !== $row['csat_rating'] ? (int) $row['csat_rating'] : null,
@@ -655,6 +656,7 @@ final class N8LC_REST {
         $c        = N8LC_DB::table( 'conversations' );
         $v        = N8LC_DB::table( 'visitors' );
         $d        = N8LC_DB::table( 'departments' );
+        $m        = N8LC_DB::table( 'messages' );
         $status   = sanitize_key( (string) $request->get_param( 'status' ) );
         $priority = sanitize_key( (string) $request->get_param( 'priority' ) );
         $search   = sanitize_text_field( (string) $request->get_param( 'search' ) );
@@ -683,7 +685,10 @@ final class N8LC_REST {
         $offset = ( $page - 1 ) * $per_page;
         $args[] = $per_page;
         $args[] = $offset;
-        $sql = "SELECT c.*,v.name visitor_name,v.email visitor_email,v.phone visitor_phone,v.last_seen visitor_last_seen,d.name department_name,u.display_name agent_name
+        $online_cutoff = wp_date( 'Y-m-d H:i:s', time() - 90, wp_timezone() );
+        $sql = "SELECT c.*,v.name visitor_name,v.email visitor_email,v.phone visitor_phone,v.last_seen visitor_last_seen,d.name department_name,u.display_name agent_name,
+                (SELECT lm.body FROM {$m} lm WHERE lm.conversation_id=c.id AND lm.is_private=0 ORDER BY lm.id DESC LIMIT 1) last_message_preview,
+                (CASE WHEN v.last_seen >= '{$online_cutoff}' THEN 1 ELSE 0 END) visitor_online
                 FROM {$c} c INNER JOIN {$v} v ON v.id=c.visitor_id
                 LEFT JOIN {$d} d ON d.id=c.department_id
                 LEFT JOIN {$wpdb->users} u ON u.ID=c.agent_id
@@ -695,7 +700,7 @@ final class N8LC_REST {
             $row['custom_data'] = ! empty( $row['custom_data'] ) ? json_decode( $row['custom_data'], true ) : array();
         }
         unset( $row );
-        return rest_ensure_response( array( 'conversations' => $rows, 'page' => $page ) );
+        return $this->fresh_response( array( 'conversations' => $rows, 'page' => $page ) );
     }
 
     public function admin_conversation_messages( WP_REST_Request $request ) {
@@ -704,7 +709,7 @@ final class N8LC_REST {
         $table = N8LC_DB::table( 'messages' );
         $rows  = $wpdb->get_results( $wpdb->prepare( "SELECT * FROM {$table} WHERE conversation_id=%d ORDER BY id ASC LIMIT 500", $id ), ARRAY_A );
         $wpdb->update( N8LC_DB::table( 'conversations' ), array( 'unread_agent' => 0 ), array( 'id' => $id ), array( '%d' ), array( '%d' ) );
-        return rest_ensure_response( array( 'messages' => $rows ) );
+        return $this->fresh_response( array( 'messages' => $rows ) );
     }
 
     public function admin_conversation_state( WP_REST_Request $request ) {
@@ -712,7 +717,7 @@ final class N8LC_REST {
         $id = absint( $request['id'] );
         $latest_message_id = (int) $wpdb->get_var( $wpdb->prepare( 'SELECT MAX(id) FROM ' . N8LC_DB::table( 'messages' ) . ' WHERE conversation_id=%d', $id ) );
         $status = (string) $wpdb->get_var( $wpdb->prepare( 'SELECT status FROM ' . N8LC_DB::table( 'conversations' ) . ' WHERE id=%d', $id ) );
-        return rest_ensure_response( array(
+        return $this->fresh_response( array(
             'visitor_typing'   => (bool) get_transient( 'n8lc_vtyping_' . $id ),
             'latest_message_id'=> $latest_message_id,
             'status'           => $status,
@@ -1209,6 +1214,13 @@ final class N8LC_REST {
         return $counts && absint( $counts['visitor_count'] ) > 0 && absint( $counts['agent_count'] ) > 0;
     }
 
+    private function fresh_response( $data ) {
+        $response = rest_ensure_response( $data );
+        $response->header( 'Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0' );
+        $response->header( 'Pragma', 'no-cache' );
+        return $response;
+    }
+
     private function tags_for_conversation( $conversation_id ) {
         global $wpdb;
         $ct = N8LC_DB::table( 'conversation_tags' );
@@ -1243,7 +1255,7 @@ final class N8LC_REST {
             $clean['accent_color'] = sanitize_hex_color( (string) $input['accent_color'] ) ?: '#111827';
         }
         if ( isset( $input['poll_interval'] ) ) {
-            $clean['poll_interval'] = max( 1500, min( 30000, absint( $input['poll_interval'] ) ) );
+            $clean['poll_interval'] = max( 800, min( 30000, absint( $input['poll_interval'] ) ) );
         }
         if ( isset( $input['retention_days'] ) ) {
             $clean['retention_days'] = max( 7, min( 3650, absint( $input['retention_days'] ) ) );

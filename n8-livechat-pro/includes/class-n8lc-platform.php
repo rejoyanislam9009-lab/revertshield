@@ -540,8 +540,8 @@ final class N8LC_Platform {
         $ranges = array(
             'max_active_chats_default'   => array( 1, 100 ),
             'widget_auto_open_delay'     => array( 0, 120 ),
-            'widget_offset_x'            => array( 0, 160 ),
-            'widget_offset_y'            => array( 0, 160 ),
+            'widget_offset_x'            => array( 0, 240 ),
+            'widget_offset_y'            => array( 0, 240 ),
             'widget_z_index'             => array( 1000, 2147483000 ),
             'widget_font_scale'          => array( 80, 140 ),
             'privacy_retention_messages' => array( 7, 3650 ),
